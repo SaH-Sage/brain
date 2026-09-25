@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03050C">
+<title>Cortex//Synapse — Interactive 3D Brain Lab</title>
+<style>
+:root{
+  --bg:#03050C; --panel:#0b0f1c; --border:#1e293b; --cyan:#00f0ff; --text:#e2e8f0; --muted:#64748b;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif;}
+body{padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;border-bottom:1px solid rgba(0,240,255,.1);
+  background:rgba(3,5,12,.85);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:14px 20px;}
+header .brand{font-weight:800;letter-spacing:.2em;font-size:14px;}
+header .brand span{color:var(--cyan);}
+header .sub{margin-top:4px;font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;}
+main{max-width:1400px;margin:0 auto;padding:24px 20px 60px;}
+h1{font-size:clamp(22px,3vw,32px);font-weight:800;text-transform:uppercase;margin:0 0 6px;}
+.lede{color:#94a3b8;max-width:640px;font-size:14px;line-height:1.6;margin-bottom:28px;}
+.grid{display:grid;grid-template-columns:240px minmax(0,1fr) 300px;gap:22px;}
+.grid > *{min-width:0;}
+.label{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;}
+.picker{display:flex;flex-direction:column;gap:8px;max-height:780px;overflow-y:auto;}
+.pick-btn{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--border);
+  background:rgba(2,6,23,.5);color:#94a3b8;padding:10px 12px;cursor:pointer;transition:.2s;font-family:inherit;}
+.pick-btn:hover{border-color:rgba(0,240,255,.4);}
+.pick-btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+.pick-btn.active{border-color:var(--dot);background:color-mix(in srgb, var(--dot) 12%, transparent);color:#f1f5f9;
+  box-shadow:0 0 18px color-mix(in srgb, var(--dot) 30%, transparent);}
+.pick-btn .dot{width:9px;height:9px;border-radius:50%;background:var(--dot);box-shadow:0 0 8px var(--dot);flex-shrink:0;}
+.pick-btn .name{font-size:13px;font-weight:600;}
+.pick-btn .meta{display:block;font-size:9px;letter-spacing:.15em;color:#64748b;text-transform:uppercase;margin-top:2px;}
+.pick-group{margin:6px 0 -2px;font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:#475569;}
+.pick-group:first-child{margin-top:0;}
+.pick-item{position:relative;display:flex;}
+.pick-item .pick-btn{flex:1;padding-right:78px;}
+.hand-switch{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;padding:2px;
+  border:1px solid #334155;border-radius:999px;background:rgba(3,5,12,.85);}
+.hand-switch .thumb{position:absolute;top:2px;left:2px;width:26px;height:20px;border-radius:999px;background:var(--dot);
+  box-shadow:0 0 10px var(--dot);transition:transform .28s cubic-bezier(.3,.7,.3,1);}
+.hand-switch[data-hand="R"] .thumb{transform:translateX(26px);}
+.hand-switch button{position:relative;z-index:1;width:26px;height:20px;padding:0;border:0;border-radius:999px;background:none;cursor:pointer;
+  font:700 10px ui-monospace,Menlo,Consolas,monospace;color:#94a3b8;transition:color .28s;}
+.hand-switch button[aria-pressed="true"]{color:#0b0f1c;}
+.hand-switch button:hover{color:#e2e8f0;}
+.hand-switch button[aria-pressed="true"]:hover{color:#0b0f1c;}
+.hand-switch button:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
+
+/* ---- 3D stage ---- */
+.canvas-wrap{position:relative;border:1px solid rgba(0,240,255,.15);background:#050810;overflow:hidden;}
+.canvas-wrap::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:radial-gradient(ellipse 75% 70% at 50% 46%, transparent 55%, rgba(2,3,8,.6) 100%);}
+#brain{display:block;width:100%;height:clamp(400px,62vh,580px);touch-action:pan-y;cursor:grab;}
+#brain.dragging{cursor:grabbing;}
+.leaders,.tags{position:absolute;inset:0;pointer-events:none;z-index:2;}
+.leaders{width:100%;height:100%;overflow:visible;}
+.leaders polyline{stroke-width:1;}
+.leaders polyline,.leaders circle{transition:opacity .45s;}
+.tag{position:absolute;left:0;top:0;font-size:11.5px;font-weight:500;line-height:1.2;color:#e8eef7;white-space:nowrap;
+  padding:3px 8px;background:rgba(3,5,12,.78);border-left:2px solid var(--c,#00f0ff);
+  opacity:0;transition:opacity .45s;will-change:transform;}
+.tag.hemi{padding:0;background:none;border:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;letter-spacing:.2em;color:#64748b;}
+.scanline{position:absolute;left:0;right:0;top:0;height:1px;z-index:2;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,transparent,var(--c,#00f0ff) 18%,var(--c,#00f0ff) 82%,transparent);
+  box-shadow:0 0 12px 1px var(--c,#00f0ff);}
+.probe{position:absolute;left:0;top:0;z-index:4;pointer-events:none;padding:8px 11px;background:rgba(3,5,12,.9);
+  border:1px solid rgba(148,163,184,.25);font-size:12px;line-height:1.4;max-width:250px;opacity:0;transition:opacity .15s;}
+.probe.on{opacity:1;}
+.probe b{display:block;font-weight:600;color:#f1f5f9;}
+.probe span{color:#94a3b8;font-size:11px;}
+.focus-cap{position:absolute;left:50%;bottom:32px;z-index:3;transform:translateX(-50%);max-width:min(340px,80%);padding:7px 12px;
+  background:rgba(3,5,12,.86);border:1px solid rgba(148,163,184,.18);border-top:2px solid var(--c,#94a3b8);text-align:center;
+  font-size:12px;line-height:1.4;opacity:0;transition:opacity .25s;pointer-events:none;}
+.focus-cap.on{opacity:1;}
+.focus-cap b{display:block;font-weight:600;color:#f1f5f9;}
+.focus-cap span{color:#94a3b8;font-size:11px;}
+.view-reset{position:absolute;right:12px;top:30px;z-index:4;padding:5px 9px;border:1px solid #334155;border-radius:2px;background:rgba(3,5,12,.86);
+  color:#cbd5e1;cursor:pointer;font:600 9px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.18em;text-transform:uppercase;
+  opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;}
+.view-reset.on{opacity:1;visibility:visible;}
+.view-reset:hover{border-color:#64748b;color:#fff;}
+.view-reset:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
+.zoom-hint{position:absolute;left:50%;top:50%;z-index:4;transform:translate(-50%,-50%);padding:9px 14px;background:rgba(3,5,12,.9);
+  border:1px solid #334155;font-size:12px;color:#e2e8f0;white-space:nowrap;opacity:0;transition:opacity .2s;pointer-events:none;}
+.zoom-hint.on{opacity:1;}
+.nogl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:#94a3b8;font-size:13px;}
+.hud{position:absolute;z-index:3;font-family:ui-monospace,monospace;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#64748b;pointer-events:none;}
+.hud.tl{top:12px;left:12px;} .hud.tr{top:12px;right:12px;color:#34d399;}
+.hud.bl{bottom:12px;left:12px;} .hud.br{bottom:12px;right:12px;font-weight:700;}
+.legend{display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin:10px 0 0 -8px;}
+.legend.sub{margin-top:0;}
+.legend .lg{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid transparent;border-radius:2px;background:none;cursor:pointer;
+  font:inherit;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#64748b;transition:color .2s,border-color .2s,background-color .2s;}
+.legend .lg:hover{color:#cbd5e1;}
+.legend .lg[aria-pressed="true"]{color:#f1f5f9;border-color:color-mix(in srgb, var(--c) 55%, transparent);background:color-mix(in srgb, var(--c) 14%, transparent);}
+.legend .lg:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
+.legend .lg.clear{color:#94a3b8;border-color:#334155;}
+.legend .lg.clear[hidden]{display:none;}
+.legend i{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--c);box-shadow:0 0 6px color-mix(in srgb, var(--c) 55%, transparent);}
+.legend .sub-item i{width:6px;height:6px;}
+.legend .k{padding:5px 8px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#3f4b5e;}
+.legend .sep{width:1px;height:12px;margin:0 6px;background:#263244;}
+.legend.ctl + .legend{margin-top:0;}
+.filter-switch{display:flex;align-items:center;gap:8px;padding:5px 8px;border:0;background:none;cursor:pointer;
+  font:inherit;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#64748b;}
+.filter-switch:hover{color:#cbd5e1;}
+.filter-switch .track{position:relative;width:26px;height:14px;border-radius:999px;background:#1e293b;border:1px solid #334155;transition:background-color .2s,border-color .2s;}
+.filter-switch .knob{position:absolute;top:2px;left:2px;width:8px;height:8px;border-radius:50%;background:#64748b;transition:transform .2s,background-color .2s;}
+.filter-switch[aria-checked="true"]{color:#e2e8f0;}
+.filter-switch[aria-checked="true"] .track{background:color-mix(in srgb, var(--cyan) 22%, transparent);border-color:var(--cyan);}
+.filter-switch[aria-checked="true"] .knob{transform:translateX(12px);background:var(--cyan);box-shadow:0 0 6px var(--cyan);}
+.filter-switch:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
+.filter-count{padding:0 8px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;}
+.pick-btn:disabled{opacity:.3;cursor:not-allowed;filter:grayscale(.7);}
+.pick-btn:disabled:hover{border-color:var(--border);}
+.pick-item.off .hand-switch{opacity:.3;}
+@media (hover:none){ .legend .lg{padding:8px 9px;} }
+
+/* ---- telemetry ---- */
+.panel{border:1px solid var(--border);background:rgba(2,6,23,.6);padding:16px;margin-bottom:14px;}
+.panel .k{display:flex;justify-content:space-between;gap:10px;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:#64748b;margin-bottom:6px;}
+.bar{height:8px;background:#1e293b;overflow:hidden;}
+.bar div{height:100%;width:0;transition:width .6s;}
+.note{margin:8px 0 0;font-size:11px;line-height:1.5;color:#7c8aa0;}
+.freq{font-size:24px;font-weight:800;margin:0;line-height:1.15;}
+.freq small{font-size:13px;font-weight:600;color:#94a3b8;margin-left:8px;}
+#trace{display:block;width:100%;height:58px;margin-top:10px;}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.chip{border:1px solid;padding:4px 8px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-family:ui-monospace,monospace;}
+.why-title{font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin:0 0 6px;}
+.why-body{font-size:13px;line-height:1.6;color:#cbd5e1;margin:0;}
+.why-fact{margin:12px 0 0;padding-top:10px;border-top:1px solid rgba(148,163,184,.14);font-size:12px;line-height:1.55;color:#94a3b8;}
+.why-fact[hidden]{display:none;}
+.why-fact b{color:#cbd5e1;font-weight:600;}
+footer{text-align:center;padding:24px;font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:#475569;border-top:1px solid rgba(0,240,255,.08);}
+
+@media (max-width:1000px){
+  .grid{grid-template-columns:minmax(0,1fr);}
+  .stage{order:-1;}
+  .picker{flex-direction:row;overflow-x:auto;max-height:none;padding-bottom:6px;scroll-snap-type:x proximity;}
+  .picker > .pick-btn,.picker > .pick-item{flex:0 0 auto;min-width:210px;scroll-snap-align:start;}
+  .picker > .pick-item{min-width:250px;}
+  .pick-group{display:none;}
+}
+@media (max-width:560px){
+  #brain{height:clamp(360px,56vh,470px);}
+  .hud .long,.hud.tr{display:none;}
+  .hud.bl{letter-spacing:.1em;}
+  .focus-cap{bottom:36px;}
+  .hud.br{top:12px;bottom:auto;}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">CORTEX<span>//</span>SYNAPSE</div>
+  <div class="sub">Educational neural simulation — not medical data</div>
+</header>
+<main>
+  <h1>The Neural Console</h1>
+  <p class="lede">Pick an activity and watch the regions and pathways neuroscience links to it light up. Drag to turn the brain, hover or tap to name a structure, and pick a region in the legend to single it out.</p>
+  <div class="grid">
+    <div>
+      <p class="label">Select stimulus</p>
+      <div class="picker" id="picker" role="group" aria-label="Activities"></div>
+    </div>
+    <div class="stage">
+      <div class="canvas-wrap" id="wrap">
+        <canvas id="brain" role="img" aria-label="3D brain model"></canvas>
+        <svg class="leaders" id="leaders" aria-hidden="true"></svg>
+        <div class="tags" id="tags" aria-hidden="true"></div>
+        <div class="scanline" id="scanline" aria-hidden="true"></div>
+        <div class="probe" id="probe" aria-hidden="true"></div>
+        <div class="focus-cap" id="focusCap" aria-live="polite"></div>
+        <button type="button" class="view-reset" id="viewReset">Reset view</button>
+        <div class="zoom-hint" id="zoomHint" aria-hidden="true"></div>
+        <div class="hud tl">SUBJ-001<span class="long"> · Stylized whole-brain model</span></div>
+        <div class="hud tr">● Tracking</div>
+        <div class="hud bl" id="hudHint">Drag to rotate · Hover to identify</div>
+        <div class="hud br" id="hudLabel">Listening to Music</div>
+      </div>
+      <div class="legend ctl" id="legendCtl" role="group" aria-label="Legend options"></div>
+      <div class="legend" id="legend" role="group" aria-label="Brain regions (select to highlight)"></div>
+      <div class="legend sub" id="legendSub" role="group" aria-label="Deep structures (select to highlight)"></div>
+    </div>
+    <div>
+      <p class="label">Telemetry</p>
+      <div class="panel">
+        <div class="k"><span id="boldLabel">fMRI BOLD change</span><span id="boldVal"></span></div>
+        <div class="bar" id="boldBarWrap"><div id="boldBar"></div></div>
+        <p class="note" id="boldNote"></p>
+      </div>
+      <div class="panel">
+        <p class="label" style="margin-bottom:6px;">Signature rhythm (EEG)</p>
+        <p class="freq" id="freqVal"></p>
+        <canvas id="trace" aria-hidden="true"></canvas>
+        <p class="note" id="rhythmNote"></p>
+      </div>
+      <div class="panel">
+        <p class="label">Most engaged regions</p>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="panel" id="whyPanel">
+        <p class="why-title">Why it sparks</p>
+        <p class="why-body" id="whyBody" aria-live="polite"></p>
+        <p class="why-fact" id="whyFact" hidden></p>
+      </div>
+    </div>
+  </div>
+</main>
+<footer>Cortex//Synapse — Neuroscience visualization lab · 2026</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   DATA
+   Region values (0–100) are relative, illustrative intensities.
+   Rhythms and BOLD ranges are typical values from the research literature.
+   ===================================================================== */
+const REGIONS = {
+  frontal:   {color:'#2a64f6', label:'Frontal Lobe'},
+  parietal:  {color:'#ffb800', label:'Parietal Lobe'},
+  temporal:  {color:'#00f0ff', label:'Temporal Lobe'},
+  occipital: {color:'#00ff87', label:'Occipital Lobe'},
+  cerebellum:{color:'#e024c3', label:'Cerebellum'},
+  limbic:    {color:'#ff2e63', label:'Limbic & Deep Nuclei'},
+  brainstem: {color:'#94a3b8', label:'Brainstem'}
+};
+
+// Every particle belongs to one structure; structures roll up into the legend groups above.
+const STRUCTS = [
+  {id:'frontal',     group:'frontal',    name:'frontal lobe',   info:'Planning, decisions, movement and speech'},
+  {id:'parietal',    group:'parietal',   name:'parietal lobe',  info:'Touch, body position, space and numbers'},
+  {id:'temporal',    group:'temporal',   name:'temporal lobe',  info:'Hearing, language, memory and recognizing faces'},
+  {id:'occipital',   group:'occipital',  name:'occipital lobe', info:'Vision'},
+  {id:'cerebellum',  group:'cerebellum', name:'Cerebellum',     info:'Coordination and timing; holds about 80% of the brain’s neurons'},
+  {id:'pons',        group:'brainstem',  name:'Pons',           info:'Relays signals between the cortex and cerebellum; helps regulate breathing and REM sleep'},
+  {id:'midbrain',    group:'brainstem',  name:'Midbrain',       info:'Alertness and eye movements; home of the dopamine-making VTA'},
+  {id:'thalamus',    group:'limbic', color:'#ff6f91', name:'Thalamus',        info:'Relay hub for the senses (smell mostly bypasses it)'},
+  {id:'hypothalamus',group:'limbic', color:'#ff7a59', name:'Hypothalamus',    info:'Hormones, hunger, body temperature and the sleep switch'},
+  {id:'hippocampus', group:'limbic', color:'#ff2e63', name:'Hippocampus',     info:'Forming and recalling memories'},
+  {id:'amygdala',    group:'limbic', color:'#ff4545', name:'Amygdala',        info:'Threat detection and emotional salience'},
+  {id:'striatum',    group:'limbic', color:'#ff4fa3', name:'Striatum',        info:'Reward, motivation, habits and choosing actions'},
+  {id:'cingulate',   group:'limbic', color:'#ff2e63', name:'Cingulate cortex',info:'Attention, error monitoring and emotion'},
+  {id:'medulla',     group:'brainstem',  name:'Medulla',        info:'Controls breathing, heart rate and blood pressure; motor fibers cross sides here'},
+  {id:'cord',        group:'brainstem',  name:'Spinal cord',    info:'Carries signals between the brain and body (only its top is shown)'}
+];
+const SI = Object.fromEntries(STRUCTS.map((s, i) => [s.id, i]));
+
+// Anatomical landmarks. x > 0 is the LEFT hemisphere, +z is the front, +y is up.
+// side: L = left only, B = both hemispheres (mirrored), X = exact position as given.
+const MARKS = {
+  broca:      {name:'Broca’s area',              p:[1.20, 0.02, 0.62], snap:1, side:'L', r:0.22},
+  ifg:        {name:'Inferior frontal gyrus',     p:[1.20, 0.02, 0.62], snap:1, side:'B', r:0.22},
+  wernicke:   {name:'Wernicke’s area',            p:[1.25,-0.20,-0.45], snap:1, side:'L', r:0.22, lobe:'temporal'},
+  auditory:   {name:'Auditory cortex',            p:[1.10,-0.16,-0.05], snap:1, inset:0.09, side:'B', r:0.20, lobe:'temporal'},
+  motorMouth: {name:'Motor cortex (mouth)',       p:[1.30, 0.20, 0.32], snap:1, side:'L', r:0.18},
+  m1Hand:     {name:'Motor cortex (hand)',        p:[1.00, 0.80, 0.10], snap:1, side:'L', r:0.20},
+  s1Hand:     {name:'Somatosensory cortex',       p:[1.00, 0.76,-0.10], snap:1, side:'L', r:0.18},
+  sma:        {name:'Supplementary motor area',   p:[0.10, 1.10, 0.30], snap:1, side:'L', r:0.22, medial:1},
+  ips:        {name:'Intraparietal sulcus',       p:[0.95, 0.75,-0.55], snap:1, side:'B', r:0.22},
+  angular:    {name:'Angular gyrus',              p:[1.20, 0.30,-0.75], snap:1, side:'L', r:0.18},
+  dlpfc:      {name:'Prefrontal cortex',          p:[0.95, 0.62, 0.95], snap:1, side:'B', r:0.26},
+  vmpfc:      {name:'Ventromedial prefrontal cortex', p:[0.12,-0.30,1.30], snap:1, side:'B', r:0.22, medial:1},
+  precuneus:  {name:'Precuneus',                  p:[0.08, 0.62,-0.62], snap:1, side:'B', r:0.22, medial:1},
+  v1:         {name:'Primary visual cortex',      p:[0.22, 0.08,-1.80], snap:1, side:'B', r:0.24},
+  fusiform:   {name:'“What” stream (fusiform)',   p:[0.70,-0.80,-0.62], snap:1, side:'B', r:0.22},
+  ppc:        {name:'“Where” stream (parietal)',  p:[0.70, 0.98,-0.75], snap:1, side:'B', r:0.22},
+  insula:     {name:'Posterior insula',           p:[0.80,-0.04,-0.18], side:'B', r:0.18},
+  hippocampus:{name:'Hippocampus',                p:[0.54,-0.30,-0.18], side:'B', deep:1},
+  amygdala:   {name:'Amygdala',                   p:[0.48,-0.40, 0.36], side:'B', deep:1},
+  hypothalamus:{name:'Hypothalamus',              p:[0.00,-0.32, 0.12], side:'X', deep:1},
+  thalamus:   {name:'Thalamus',                   p:[0.19,-0.02,-0.12], side:'B', deep:1},
+  lgn:        {name:'Visual thalamus (LGN)',      p:[0.30,-0.16,-0.36], side:'B', deep:1},
+  nacc:       {name:'Nucleus accumbens',          p:[0.17,-0.20, 0.48], side:'B', deep:1},
+  caudate:    {name:'Caudate nucleus',            p:[0.30, 0.24, 0.12], side:'B', deep:1},
+  vta:        {name:'VTA (dopamine source)',      p:[0.00,-0.46,-0.10], side:'X', deep:1},
+  pag:        {name:'Periaqueductal gray',        p:[0.00,-0.42,-0.30], side:'X', deep:1},
+  pituitary:  {name:'Pituitary',                  p:[0.00,-0.56, 0.22], side:'X', deep:1},
+  cerebR:     {name:'Cerebellum (right half)',    p:[-0.55,-1.04,-1.25], side:'X', deep:1},
+  cerebL:     {name:'Cerebellum (left half)',     p:[0.55,-1.04,-1.25], side:'X', deep:1},
+  vlpfc:      {name:'Ventrolateral prefrontal cortex', p:[1.05,-0.12,0.85], snap:1, side:'B', r:0.2}
+};
+
+// Fiber pathways that carry the animated signal pulses (start → end).
+const PATHS = {
+  audToIfg:       {side:'B', pts:['auditory',[0.86,0.10,0.28],'ifg']},
+  audToNacc:      {side:'B', pts:['auditory',[0.55,-0.15,0.30],'nacc']},
+  audToSma:       {side:'B', pts:['auditory',[0.62,0.50,0.10],'sma']},
+  audToWernicke:  {side:'L', pts:['auditory',[1.02,-0.22,-0.28],'wernicke']},
+  arcuate:        {side:'L', pts:['wernicke',[1.00,0.30,-0.42],[0.95,0.38,0.05],'broca']},
+  brocaToMotor:   {side:'L', pts:['broca',[1.12,0.18,0.48],'motorMouth']},
+  ipsToDlpfc:     {side:'B', pts:['ips',[0.80,0.78,0.20],'dlpfc']},
+  hippoToPfc:     {side:'B', pts:['hippocampus',[0.45,-0.05,0.45],[0.62,0.35,0.85],'dlpfc']},
+  hippoToPrecuneus:{side:'B',pts:['hippocampus',[0.40,0.25,-0.55],'precuneus']},
+  hippoToVisual:  {side:'B', pts:['hippocampus',[0.50,-0.10,-0.95],[0.35,0.02,-1.45]]},
+  thalToAmyg:     {side:'B', pts:['thalamus',[0.36,-0.26,0.16],'amygdala']},
+  amygToHypo:     {side:'B', pts:['amygdala',[0.25,-0.38,0.28],'hypothalamus']},
+  hypoToBrainstem:{side:'X', pts:['hypothalamus','pag',[0,-0.90,-0.28],[0,-1.40,-0.42]]},
+  vmpfcToAmyg:    {side:'B', pts:['vmpfc',[0.35,-0.35,0.80],'amygdala']},
+  corticospinal:  {side:'L', pts:['m1Hand',[0.45,0.35,0.02],[0.25,-0.05,-0.08],[0.12,-0.45,-0.18],[0.10,-0.95,-0.16],[0.08,-1.30,-0.30],[-0.06,-1.55,-0.44],[-0.08,-2.05,-0.53]]},
+  cerebLoop:      {side:'X', pts:['cerebR',[-0.25,-0.75,-0.55],[0,-0.50,-0.35],[0.19,-0.05,-0.12],[0.45,0.45,0.02],'m1Hand']},
+  lgnToV1:        {side:'B', pts:['lgn',[0.55,-0.12,-0.75],'v1']},
+  ventralStream:  {side:'B', pts:['v1',[0.55,-0.45,-1.10],'fusiform',[0.85,-0.55,-0.15]]},
+  dorsalStream:   {side:'B', pts:['v1',[0.45,0.55,-1.25],'ppc']},
+  thalToFront:    {side:'B', pts:['thalamus',[0.45,0.45,0.55],'dlpfc']},
+  thalToPar:      {side:'B', pts:['thalamus',[0.50,0.60,-0.40],'ips']},
+  mesolimbic:     {side:'B', pts:['vta',[0.10,-0.35,0.22],'nacc']},
+  mesocortical:   {side:'B', pts:['vta',[0.10,-0.30,0.45],[0.12,-0.15,0.95],'vmpfc']},
+  vtaToCaudate:   {side:'B', pts:['vta',[0.15,-0.20,0.05],[0.25,0.10,0.20],'caudate']},
+  hypoToPit:      {side:'X', pts:['hypothalamus','pituitary']},
+  insulaToNacc:   {side:'B', pts:['insula',[0.45,-0.15,0.25],'nacc']},
+  corticospinalLH:{mirrorOf:'corticospinal'},
+  cerebLoopLH:    {mirrorOf:'cerebLoop'},
+  ipsToIfgL:      {side:'L', pts:['ips',[1.02,0.45,-0.05],'ifg']},
+  ipsToDlpfcL:    {side:'L', pts:['ips',[0.80,0.78,0.20],'dlpfc']},
+  ifgToCaudateL:  {side:'L', pts:['ifg',[0.62,0.14,0.42],'caudate']},
+  artsDorsalR:    {side:'R', pts:['v1',[0.45,0.55,-1.25],'ppc']},
+  artsSLFR:       {side:'R', pts:['ppc',[0.80,0.80,0.20],'dlpfc']},
+  dmnMedial:      {side:'X', gain:1.9, pts:[[0,0.62,-0.62],[0,0.58,0.0],[0,0.30,0.85],[0,-0.25,1.26]]}   // default network: one midline path between the hemispheres
+};
+
+const ACTIVITIES = [
+ {id:'logic', lateral:true, name:'Logical Reasoning', accent:'#4f8cff', view:[3.1416,1.0],
+  rhythm:{band:'Theta', range:'4–8 Hz', kind:'theta', note:'Frontal theta tends to rise as a reasoning problem loads up working memory.'},
+  bold:{text:'≈ 0.5–1.5%', pct:1.0},
+  regions:{frontal:80, parietal:65, temporal:25, cerebellum:20, occipital:15},
+  structures:{striatum:30, thalamus:30, cingulate:40, hippocampus:15},
+  lat:{cortex:0.5},
+  hot:[{id:'ifg', side:'L', v:0.8},{id:'ips', side:'L', v:0.75},{id:'dlpfc', side:'L', v:0.55},{id:'caudate', side:'L', v:0.5, r:0.16},{id:'sma', v:0.35},{id:'vlpfc', side:'R', v:0.4}],
+  labels:[{id:'ifg', side:'L', text:'Left inferior frontal gyrus'},{id:'ips', side:'L', text:'Left parietal cortex'},{id:'caudate', side:'L', text:'Left basal ganglia'},{id:'vlpfc', side:'R', text:'Right prefrontal (checks conflicts)'}],
+  paths:['ipsToIfgL','ipsToDlpfcL','ifgToCaudateL'],
+  why:"Working through a logical argument (“if A, then B…”) reliably engages a mostly left-sided network: the inferior frontal gyrus, prefrontal and parietal cortex, and the basal ganglia. The right prefrontal cortex still pitches in, especially when a problem is uncertain or the logic clashes with what you believe, so reasoning is a two-sided effort with a left-side lead."},
+
+ {id:'arts', lateral:true, name:'Creating Art', accent:'#ff9f43', view:[3.1416,1.0],
+  rhythm:{band:'Alpha', range:'8–12 Hz', kind:'alpha', note:'Alpha rises over frontal and right parietal sites while people come up with original ideas, a sign of attention turned inward.'},
+  bold:{text:'≈ 0.5–1.5%', pct:1.0},
+  regions:{parietal:70, frontal:55, occipital:50, temporal:35, limbic:25},
+  structures:{thalamus:45, cingulate:40, hippocampus:35, striatum:20, amygdala:15},
+  lat:{cortex:-0.4},
+  hot:[{id:'ppc', side:'R', v:0.85},{id:'dlpfc', side:'R', v:0.6},{id:'ifg', side:'R', v:0.45},{id:'precuneus', v:0.4},{id:'fusiform', side:'L', v:0.45}],
+  labels:[{id:'ppc', side:'R', text:'Right parietal cortex'},{id:'dlpfc', side:'R', text:'Right prefrontal cortex'},{id:'precuneus', text:'Default network (precuneus)'},{id:'fusiform', side:'L', text:'Left fusiform (imagery)'}],
+  paths:['artsDorsalR','artsSLFR','dmnMedial'],
+  why:"No one is truly “right-brained”: scans of over 1,000 people found no one whose whole brain favors one side. But some ingredients of art do lean right. The right hemisphere leads on spatial layout and the big picture (after right-side damage, drawings keep their details but lose their overall shape), and right prefrontal regions help evaluate and refine ideas. The ideas themselves come from teamwork between networks that free-associate and networks that judge.",
+  fact:"The small glow low on the left side is the left fusiform gyrus. Brain scans of visual creativity find it active during mental imagery, a left-side exception to art’s overall right lean."},
+
+ {id:'movement', lateral:true, card:'Moving Your Hand', name:'Moving Your Right Hand', accent:'#e024c3', view:[3.1416,0.8],
+  rhythm:{band:'Beta', range:'13–30 Hz', kind:'erd', note:'Beta over the motor cortex drops while you move, then rebounds when you stop.'},
+  bold:{text:'≈ 1–3%', pct:2.0},
+  regions:{frontal:80, cerebellum:85, parietal:45, brainstem:35, limbic:25},
+  structures:{striatum:55, thalamus:55, midbrain:25},
+  lat:{cortex:0.6, cereb:-0.65},
+  hot:['m1Hand',{id:'s1Hand', v:0.6},{id:'sma', v:0.55}],
+  labels:['m1Hand','cerebR','s1Hand'],
+  paths:['corticospinal','cerebLoop'],
+  also:['medulla'],
+  why:"Each side of the brain runs the opposite side of the body, so your left motor cortex issues the command, and its signal crosses over in the lower brainstem on the way to the spinal cord. The cerebellum, on the same side as the moving hand, fine-tunes timing and force, while the somatosensory cortex reports back what your fingers feel."},
+
+ {id:'movementL', hidden:true, lateral:true, name:'Moving Your Left Hand', accent:'#e024c3', view:[3.1416,0.8],
+  rhythm:{band:'Beta', range:'13–30 Hz', kind:'erd', note:'Beta over the motor cortex drops while you move, then rebounds when you stop.'},
+  bold:{text:'≈ 1–3%', pct:2.0},
+  regions:{frontal:80, cerebellum:85, parietal:45, brainstem:35, limbic:25},
+  structures:{striatum:55, thalamus:55, midbrain:25},
+  lat:{cortex:-0.6, cereb:0.65},
+  hot:[{id:'m1Hand', side:'R', v:0.85},{id:'s1Hand', side:'R', v:0.6},{id:'sma', v:0.55}],
+  labels:[{id:'m1Hand', side:'R'},'cerebL',{id:'s1Hand', side:'R'}],
+  paths:['corticospinalLH','cerebLoopLH'],
+  also:['medulla'],
+  why:"Each side of the brain runs the opposite side of the body, so your right motor cortex issues the command, and its signal crosses over in the lower brainstem on the way to the spinal cord. The cerebellum, on the same side as the moving hand, fine-tunes timing and force, while the somatosensory cortex reports back what your fingers feel."},
+
+ {id:'speaking', lateral:true, name:'Speaking & Language', accent:'#00f0ff', view:[-1.45,0.14],
+  rhythm:{band:'Theta', range:'4–8 Hz', kind:'syll', note:'Speech comes in roughly 4–5 syllables a second, and theta activity in auditory cortex tracks that rhythm.'},
+  bold:{text:'≈ 0.5–2%', pct:1.2},
+  regions:{temporal:80, frontal:75, cerebellum:30, parietal:25},
+  structures:{thalamus:35, striatum:35},
+  lat:{cortex:0.55, cereb:-0.35},
+  hot:['broca','wernicke',{id:'motorMouth', v:0.6},{id:'auditory', v:0.5}],
+  labels:['broca','wernicke','motorMouth'],
+  paths:['audToWernicke','arcuate','brocaToMotor'],
+  also:['cerebellum'],
+  why:"In most people, language leans on the left hemisphere. Wernicke’s area in the temporal lobe helps link sounds to meaning, Broca’s area in the frontal lobe helps plan words and sentences, and a fiber tract called the arcuate fasciculus connects them. The motor cortex and cerebellum then coordinate your lips, tongue and larynx."},
+
+ {id:'music', name:'Listening to Music', accent:'#00f0ff', view:[-1.35,0.16],
+  rhythm:{band:'Beta', range:'13–30 Hz', kind:'beat', note:'Beta power in auditory and motor areas rises and falls in time with the beat.'},
+  bold:{text:'≈ 1–2%', pct:1.5},
+  regions:{temporal:90, frontal:40, cerebellum:35, limbic:35, parietal:20},
+  structures:{striatum:75, amygdala:30, hippocampus:30, thalamus:45, hypothalamus:15, cingulate:30},
+  lat:{cortex:-0.15},
+  hot:['auditory', {id:'ifg', v:0.55}, {id:'sma', v:0.6}],
+  labels:['auditory','ifg','nacc'],
+  paths:['audToIfg','audToNacc','audToSma'],
+  also:['cerebellum'],
+  why:"Auditory cortex in the temporal lobe decodes pitch and timbre, while the inferior frontal cortex tracks musical structure and predicts what comes next. Keeping the beat recruits motor regions (the supplementary motor area, basal ganglia and cerebellum) even when you sit still. Music that gives you chills releases dopamine in the striatum, first as the big moment approaches and again when it hits."},
+
+ {id:'math', name:'Solving Mathematics', accent:'#ffb800', view:[-1.8,0.28],
+  rhythm:{band:'Theta', range:'4–8 Hz', kind:'theta', note:'Frontal midline theta grows with mental arithmetic and working-memory load.'},
+  bold:{text:'≈ 0.5–1.5%', pct:1.0},
+  regions:{parietal:85, frontal:75, occipital:20, temporal:15},
+  structures:{hippocampus:25, striatum:20, thalamus:30},
+  hot:['ips','dlpfc',{id:'angular', v:0.6}],
+  labels:['ips','dlpfc','angular'],
+  paths:['ipsToDlpfc'],
+  why:"The intraparietal sulcus represents quantities and is active whenever you compare or estimate numbers, while the prefrontal cortex holds intermediate results in working memory and sequences the steps. Memorized facts like times tables lean more on the left angular gyrus."},
+
+ {id:'memory', name:'Recalling a Memory', accent:'#ff2e63', view:[-1.25,0.1],
+  rhythm:{band:'Theta', range:'4–8 Hz', kind:'theta', note:'Hippocampal theta helps coordinate recall across the cortex.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{limbic:80, temporal:55, frontal:50, parietal:40, occipital:20},
+  structures:{hippocampus:100, amygdala:30, thalamus:35, cingulate:45, hypothalamus:15, striatum:15},
+  hot:[{id:'dlpfc', v:0.6},{id:'precuneus', v:0.7}],
+  labels:['hippocampus','precuneus','dlpfc'],
+  paths:['hippoToPfc','hippoToPrecuneus','hippoToVisual'],
+  why:"The hippocampus, tucked inside the temporal lobe, works like an index: it reactivates the scattered cortical traces that make up an experience. Prefrontal regions steer the search and parietal areas such as the precuneus help you re-see the scene. Every recall is a reconstruction, which is one reason memories drift over time."},
+
+ {id:'fear', name:'Feeling Fear & Threat', accent:'#ff2e63', view:[-0.95,0.05],
+  rhythm:{band:'Gamma', range:'30–80 Hz', kind:'gamma', note:'Recordings from inside the human amygdala show rapid gamma bursts to fearful faces.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{limbic:90, brainstem:60, frontal:30, temporal:25},
+  structures:{amygdala:100, hypothalamus:80, thalamus:45, hippocampus:40, striatum:20, cingulate:40, midbrain:75},
+  hot:[{id:'vmpfc', v:0.45}],
+  labels:['amygdala','hypothalamus','pag'],
+  paths:['thalToAmyg','amygToHypo','hypoToBrainstem','vmpfcToAmyg'],
+  why:"The amygdala flags a threat within a fraction of a second, helped by a fast route from the thalamus. It signals the hypothalamus and brainstem, including the periaqueductal gray, to launch the stress response: racing heart, adrenaline, freezing. The prefrontal cortex weighs in a beat later and can dial the alarm back down."},
+
+ {id:'vision', name:'Seeing an Image', accent:'#00ff87', view:[-2.45,0.22],
+  rhythm:{band:'Gamma', range:'30–80 Hz', kind:'gamma', note:'Visual cortex oscillates in the gamma range while it processes an image; resting alpha drops.'},
+  bold:{text:'≈ 1–3%', pct:2.2},
+  regions:{occipital:95, temporal:45, parietal:35, frontal:15},
+  structures:{thalamus:60},
+  hot:['v1',{id:'fusiform', v:0.7},{id:'ppc', v:0.55}],
+  labels:['v1','fusiform','ppc'],
+  paths:['lgnToV1','ventralStream','dorsalStream'],
+  why:"Signals from the eyes relay through the thalamus to the primary visual cortex at the back of the brain, which maps edges, color and motion. From there a lower “what” stream into the temporal lobe recognizes objects and faces, and an upper “where” stream into the parietal lobe tracks location and guides your hands."},
+
+ {id:'sleep', name:'Deep Sleep & Delta Waves', accent:'#a66bff', view:[-1.57,0.12],
+  rhythm:{band:'Delta', range:'0.5–4 Hz', kind:'delta', note:'Large slow waves, about one per second, roll from the front of the brain to the back (slowed down in the model).'},
+  bold:{label:'Glucose use vs. awake', text:'12–44% lower', pct:null, note:'Measured with PET. Deep non-REM sleep uses markedly less energy than wakefulness.'},
+  regions:{frontal:30, parietal:25, temporal:22, occipital:18, limbic:35, brainstem:12, cerebellum:10},
+  structures:{thalamus:45, hypothalamus:65, hippocampus:50, midbrain:10, striatum:15, amygdala:15},
+  dim:0.62, wave:1, spark:0.35,
+  labels:['thalamus',{id:'hypothalamus', text:'Hypothalamus (sleep switch)'},'hippocampus'],
+  paths:['thalToFront','thalToPar','hippoToPfc'],
+  also:['frontal','parietal','temporal','occipital'],
+  why:"In deep non-REM sleep, huge groups of neurons fire and fall silent together, sending slow waves rolling from front to back about once a second. The brainstem’s arousal systems quiet down, a sleep switch in the hypothalamus holds them off, and overall energy use drops. The hippocampus replays recent experiences, helping to lock in memories. Deep sleep also pulses cerebrospinal fluid through the brain, though whether that speeds waste clearance is still debated."},
+
+ {id:'happiness', name:'Feeling Happiness', accent:'#ffd23f', view:[-0.9,0.05],
+  rhythm:{band:'Alpha', range:'8–12 Hz', kind:'alpha', note:'Positive moods go with relatively less alpha over the left frontal lobe. Alpha falls where cortex is busier, so that means more left-frontal activity.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{limbic:75, frontal:65, brainstem:35, parietal:15},
+  structures:{striatum:95, midbrain:80, amygdala:30, hypothalamus:30, cingulate:45, hippocampus:20, thalamus:25, pons:15, medulla:15},
+  lat:{cortex:0.25},
+  hot:['vmpfc'],
+  labels:['vta','nacc','vmpfc'],
+  paths:['mesolimbic','mesocortical'],
+  why:"Rewards send dopamine from the ventral tegmental area (VTA) to the nucleus accumbens, although dopamine drives wanting more than enjoying; the pleasure itself leans on opioid “hotspots” in the same circuit. The ventromedial prefrontal cortex tracks how good things feel, and positive, approach-oriented moods go with relatively greater left-frontal activity."},
+
+ {id:'love', name:'Falling in Love', accent:'#ff5ea8', view:[-1.1,0.08],
+  rhythm:{band:'No clear signature', range:'', kind:'mixed', note:'Romantic love has mostly been studied with fMRI; no single EEG rhythm defines it.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{limbic:80, brainstem:50, frontal:15, temporal:15},
+  structures:{striatum:90, midbrain:95, hypothalamus:55, amygdala:6, hippocampus:25, cingulate:40, thalamus:20, pons:15, medulla:15},
+  labels:['vta','caudate',{id:'amygdala', text:'Amygdala (quieter)'}],
+  paths:['vtaToCaudate','hypoToPit'],
+  why:"Looking at a new partner activates the ventral tegmental area and the caudate nucleus, dopamine-rich reward regions tied to craving and focus. Meanwhile the amygdala and regions involved in critical social judgment tend to quiet down, which may be why love can blunt your skepticism. Oxytocin and vasopressin, made in the hypothalamus, are linked more to the long-term bonding that can follow."},
+
+ {id:'lust', name:'Lust & Attraction', accent:'#ff3b3b', view:[-1.15,0.05],
+  rhythm:{band:'No clear signature', range:'', kind:'mixed', note:'No established EEG rhythm marks sexual desire; most evidence comes from fMRI.'},
+  bold:{text:'≈ 0.2–1%', pct:0.7},
+  regions:{limbic:90, brainstem:45, parietal:35, frontal:30, occipital:30},
+  structures:{hypothalamus:100, amygdala:80, striatum:85, midbrain:55, thalamus:40, cingulate:45, hippocampus:20},
+  hot:['insula'],
+  labels:['hypothalamus','amygdala','insula'],
+  paths:['amygToHypo','hypoToBrainstem','insulaToNacc'],
+  why:"The hypothalamus coordinates hormonal and bodily arousal, the amygdala flags sexually relevant cues, and the ventral striatum’s reward circuit builds desire. Brain scans of desire and love overlap, but desire leans on the posterior insula, which tracks raw bodily sensation, while love recruits the anterior insula and the more habit-linked dorsal striatum."}
+];
+
+/* =====================================================================
+   SMALL HELPERS
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rand = mulberry32(0xC0FFEE);   // seeded: the same brain every load
+const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+let MOTION = motionQuery.matches ? 0 : 1;
+
+// Perlin "improved" noise, used to fold the cortex into gyri and sulci
+const PERM = new Uint8Array(512);
+{ const p = new Uint8Array(256), r = mulberry32(1337); for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--){ const j = Math.floor(r() * (i + 1)); const t = p[i]; p[i] = p[j]; p[j] = t; }
+  for (let i = 0; i < 512; i++) PERM[i] = p[i & 255]; }
+const fade = t => t * t * t * (t * (t * 6 - 15) + 10);
+function g3(h, x, y, z){ h &= 15; const u = h < 8 ? x : y, v = h < 4 ? y : (h === 12 || h === 14 ? x : z);
+  return ((h & 1) ? -u : u) + ((h & 2) ? -v : v); }
+function noise3(x, y, z){
+  const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z); x -= X; y -= Y; z -= Z;
+  const xi = X & 255, yi = Y & 255, zi = Z & 255, u = fade(x), v = fade(y), w = fade(z);
+  const A = PERM[xi] + yi, AA = PERM[A] + zi, AB = PERM[A + 1] + zi, B = PERM[xi + 1] + yi, BA = PERM[B] + zi, BB = PERM[B + 1] + zi;
+  return lerp(lerp(lerp(g3(PERM[AA], x, y, z), g3(PERM[BA], x - 1, y, z), u), lerp(g3(PERM[AB], x, y - 1, z), g3(PERM[BB], x - 1, y - 1, z), u), v),
+              lerp(lerp(g3(PERM[AA + 1], x, y, z - 1), g3(PERM[BA + 1], x - 1, y, z - 1), u), lerp(g3(PERM[AB + 1], x, y - 1, z - 1), g3(PERM[BB + 1], x - 1, y - 1, z - 1), u), v), w);
+}
+
+/* =====================================================================
+   BRAIN SHAPE (signed distance functions)
+   ===================================================================== */
+function sdE(x, y, z, c, r){ // approximate ellipsoid distance
+  const px = (x - c[0]) / r[0], py = (y - c[1]) / r[1], pz = (z - c[2]) / r[2];
+  const k0 = Math.sqrt(px * px + py * py + pz * pz);
+  const qx = px / r[0], qy = py / r[1], qz = pz / r[2];
+  const k1 = Math.sqrt(qx * qx + qy * qy + qz * qz);
+  return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(r[0], r[1], r[2]);
+}
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
+const smax = (a, b, k) => -smin(-a, -b, k);
+// One hemisphere = main mass + frontal pole + occipital pole + temporal lobe
+const HEM = { m:{c:[0.60,0.22,-0.10], r:[0.74,0.98,1.60]}, f:{c:[0.56,0.08,0.80], r:[0.70,0.62,0.86]},
+              o:{c:[0.46,0.10,-1.12], r:[0.56,0.66,0.62]}, t:{c:[0.84,-0.46,-0.10], r:[0.48,0.44,0.88]} };
+function hemParts(x, y, z){ const ax = Math.abs(x);
+  return [sdE(ax,y,z,HEM.m.c,HEM.m.r), sdE(ax,y,z,HEM.f.c,HEM.f.r), sdE(ax,y,z,HEM.o.c,HEM.o.r), sdE(ax,y,z,HEM.t.c,HEM.t.r)]; }
+function sdCerebrum(x, y, z){
+  const [m, f, o, t] = hemParts(x, y, z);
+  let d = smin(m, f, 0.30); d = smin(d, o, 0.28); d = smin(d, t, 0.10);   // tight blend = Sylvian crease
+  return smax(d, 0.035 - Math.abs(x), 0.09);                               // longitudinal fissure
+}
+const CB = { h:{c:[0.40,-1.06,-1.12], r:[0.55,0.40,0.54]}, v:{c:[0,-1.02,-1.14], r:[0.22,0.42,0.52]} };
+function sdCereb(x, y, z){ return smin(sdE(Math.abs(x),y,z,CB.h.c,CB.h.r), sdE(x,y,z,CB.v.c,CB.v.r), 0.16); }
+function gradOf(fn, x, y, z){ const e = 0.003;
+  const gx = fn(x+e,y,z) - fn(x-e,y,z), gy = fn(x,y+e,z) - fn(x,y-e,z), gz = fn(x,y,z+e) - fn(x,y,z-e);
+  const l = Math.sqrt(gx*gx + gy*gy + gz*gz) || 1; return [gx/l, gy/l, gz/l]; }
+const centralZ = y => -0.12 + (1.18 - y) * 0.36;         // central sulcus
+const sylvianY = z => -0.30 + (0.55 - z) * 0.26;         // lateral (Sylvian) fissure
+const occZ = y => -1.0 + 0.08 * y;                       // parieto-occipital boundary
+
+function cortexFold(x, y, z){ // 1 = crown of a gyrus, 0 = bottom of a sulcus
+  const w = noise3(x * 0.8 + 11.3, y * 0.8 - 4.1, z * 0.8 + 2.7);
+  const n = noise3(x * 2.35 + w * 0.9, y * 2.6 - w * 0.6, z * 1.85 + w * 0.7);
+  let f = smooth(0.03, 0.30, Math.abs(n));
+  const ax = Math.abs(x);
+  if (ax > 0.2 && y > -0.02) f = Math.min(f, smooth(0.012, 0.055, Math.abs(z - centralZ(y))));
+  if (ax > 0.75 && z < 0.62 && z > -0.80) f = Math.min(f, smooth(0.015, 0.07, Math.abs(y - sylvianY(z))));
+  return f;
+}
+function cerebFold(x, y, z){ // folia radiate from the peduncles like the pages of a book
+  const a = Math.atan2(y + 1.02, -(z + 0.35));
+  return smooth(0.1, 0.6, Math.abs(Math.sin(a * 58 + noise3(x * 3, y * 3, z * 3) * 1.4)));
+}
+function callosumTop(z){ const q = (z + 0.10) / 0.70; return Math.abs(q) < 1 ? 0.06 + 0.24 * Math.sqrt(1 - q * q) : null; }
+function classifyCortex(x, y, z){
+  const ax = Math.abs(x);
+  if (ax < 0.16){ const yc = callosumTop(z); if (yc !== null && y > yc - 0.02 && y < yc + 0.26) return SI.cingulate; }
+  if (z < occZ(y)) return SI.occipital;
+  const [m, f, o, t] = hemParts(x, y, z);
+  if (t < Math.min(m, f, o) + 0.02 && y < 0.02) return SI.temporal;
+  if (y < -0.28 && z < 0.42) return SI.temporal;
+  return z > centralZ(y) ? SI.frontal : SI.parietal;
+}
+
+/* =====================================================================
+   PARTICLE CLOUD BUILDER
+   ===================================================================== */
+function buildBrain(Q){
+  const MAX = Math.round(26000 * Q) + 200;
+  const A = { pos:new Float32Array(MAX*3), start:new Float32Array(MAX*3), nor:new Float32Array(MAX*3), col:new Float32Array(MAX*3),
+              st:new Float32Array(MAX), seed:new Float32Array(MAX), size:new Float32Array(MAX), fold:new Float32Array(MAX),
+              hemi:new Float32Array(MAX), kind:new Float32Array(MAX) };
+  let n = 0;
+  const SIZE_K = 1 / Math.sqrt(Q);
+  const tmp = new THREE.Color();
+  const colorOf = s => tmp.set(STRUCTS[s].color || REGIONS[STRUCTS[s].group].color);
+  function add(x, y, z, nx, ny, nz, s, fold, kind, size){
+    if (n >= MAX) return;
+    const i3 = n * 3;
+    A.pos[i3] = x; A.pos[i3+1] = y; A.pos[i3+2] = z;
+    A.nor[i3] = nx; A.nor[i3+1] = ny; A.nor[i3+2] = nz;
+    colorOf(s); A.col[i3] = tmp.r; A.col[i3+1] = tmp.g; A.col[i3+2] = tmp.b;
+    // intro: start scattered on a wide spiral disc
+    const r = 2.6 + rand() * 4.2, th = rand() * Math.PI * 2;
+    A.start[i3] = Math.cos(th) * r; A.start[i3+1] = (rand() - 0.5) * 0.9 + y * 0.15; A.start[i3+2] = Math.sin(th) * r;
+    A.st[n] = s; A.seed[n] = rand(); A.size[n] = size * SIZE_K; A.fold[n] = fold; A.kind[n] = kind;
+    A.hemi[n] = x > 0.02 ? 1 : (x < -0.02 ? -1 : 0);
+    n++;
+  }
+
+  // --- cerebral cortex: sample the folded surface ---
+  const NC = Math.round(15500 * Q);
+  for (let c = 0, guard = 0; c < NC && guard < 5e6; guard++){
+    const x = (rand() * 2 - 1) * 1.40, y = -0.95 + rand() * 2.22, z = -1.84 + rand() * 3.56;
+    const d = sdCerebrum(x, y, z);
+    if (d > 0.012 || d < -0.012) continue;
+    const g = gradOf(sdCerebrum, x, y, z);
+    let px = x - d * g[0], py = y - d * g[1], pz = z - d * g[2];
+    if (Math.abs(px) < 0.14){ const yc = callosumTop(pz); if (yc !== null && py < yc - 0.03 && py > -0.5) continue; } // open medial window
+    const fold = cortexFold(px, py, pz);
+    if (rand() > 0.22 + 0.78 * fold) continue;
+    const disp = (fold - 0.62) * 0.075;
+    px += g[0] * disp; py += g[1] * disp; pz += g[2] * disp;
+    add(px, py, pz, g[0], g[1], g[2], classifyCortex(px, py, pz), fold, 0, 0.050 + rand() * 0.026);
+    c++;
+  }
+  // --- cerebellum with folia ---
+  const NCB = Math.round(3400 * Q);
+  for (let c = 0, guard = 0; c < NCB && guard < 3e6; guard++){
+    const x = (rand() * 2 - 1) * 1.0, y = -1.5 + rand() * 0.9, z = -1.72 + rand() * 1.2;
+    const d = sdCereb(x, y, z);
+    if (Math.abs(d) > 0.012) continue;
+    const g = gradOf(sdCereb, x, y, z);
+    let px = x - d * g[0], py = y - d * g[1], pz = z - d * g[2];
+    const fold = cerebFold(px, py, pz);
+    if (rand() > 0.30 + 0.70 * fold) continue;
+    const disp = (fold - 0.6) * 0.045;
+    add(px + g[0]*disp, py + g[1]*disp, pz + g[2]*disp, g[0], g[1], g[2], SI.cerebellum, fold, 2, 0.044 + rand() * 0.02);
+    c++;
+  }
+  // --- deep structures ---
+  function blob(c, r, count, s, mirror, surf = 0.6, size = 0.05){
+    const sides = mirror ? [1, -1] : [1];
+    for (const sx of sides) for (let i = 0; i < count; i++){
+      let ux = rand()*2-1, uy = rand()*2-1, uz = rand()*2-1; const l = Math.sqrt(ux*ux+uy*uy+uz*uz);
+      if (l > 1 || l < 1e-3){ i--; continue; } ux /= l; uy /= l; uz /= l;
+      const rr = rand() < surf ? 0.86 + 0.14 * rand() : Math.cbrt(rand()) * 0.86;
+      let nx = ux / r[0], ny = uy / r[1], nz = uz / r[2]; const nl = Math.sqrt(nx*nx+ny*ny+nz*nz); nx /= nl; ny /= nl; nz /= nl;
+      add((c[0] + ux * r[0] * rr) * sx, c[1] + uy * r[1] * rr, c[2] + uz * r[2] * rr, nx * sx, ny, nz, s, 1, 1, size);
+    }
+  }
+  function tube(pts, radiusAt, count, structAt, mirror, opt = {}){
+    const sides = mirror ? [1, -1] : [1];
+    for (const sx of sides){
+      const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(p[0] * sx, p[1], p[2])), false, 'centripetal');
+      const SEG = 96, fr = curve.computeFrenetFrames(SEG, false), P = new THREE.Vector3();
+      for (let i = 0; i < count; i++){
+        const u = rand(); curve.getPointAt(u, P);
+        const k = Math.min(SEG, Math.round(u * SEG)), N = fr.normals[k], Bn = fr.binormals[k];
+        const a = rand() * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+        const nx = N.x*ca + Bn.x*sa, ny = N.y*ca + Bn.y*sa, nz = N.z*ca + Bn.z*sa;
+        const R = radiusAt(u) * (rand() < (opt.surf ?? 0.7) ? 0.86 + 0.14 * rand() : Math.sqrt(rand()) * 0.86);
+        add(P.x + nx*R, P.y + ny*R, P.z + nz*R, nx, ny, nz, structAt(u, P), opt.fade ? opt.fade(u) : 1, opt.kind ?? 1, opt.size ?? 0.05);
+      }
+    }
+  }
+  blob([0.19,-0.02,-0.12], [0.13,0.13,0.28], Math.round(240*Q), SI.thalamus, true);
+  blob([0.00,-0.32, 0.12], [0.10,0.09,0.13], Math.round(130*Q), SI.hypothalamus, false);
+  blob([0.00,-0.56, 0.22], [0.055,0.05,0.06], Math.round(45*Q), SI.hypothalamus, false);
+  blob([0.48,-0.40, 0.36], [0.11,0.10,0.12], Math.round(130*Q), SI.amygdala, true);
+  blob([0.46, 0.02, 0.16], [0.09,0.17,0.30], Math.round(170*Q), SI.striatum, true);   // putamen
+  blob([0.17,-0.20, 0.48], [0.08,0.07,0.09], Math.round(70*Q),  SI.striatum, true);   // nucleus accumbens
+  tube([[0.50,-0.40,0.16],[0.57,-0.34,-0.12],[0.53,-0.20,-0.44],[0.42,0.00,-0.62]], u => lerp(0.10, 0.045, u),
+       Math.round(280*Q), () => SI.hippocampus, true);
+  tube([[0.24,0.06,0.52],[0.30,0.24,0.22],[0.33,0.26,-0.18],[0.40,0.12,-0.50],[0.50,-0.10,-0.52]], u => lerp(0.12, 0.03, Math.sqrt(u)),
+       Math.round(250*Q), () => SI.striatum, true);                                     // caudate
+  // --- brainstem (midbrain → pons → medulla → spinal cord) ---
+  const stemR = u => u < 0.2 ? 0.20 : (u < 0.55 ? lerp(0.20, 0.15, (u - 0.2) / 0.35) : lerp(0.15, 0.09, clamp((u - 0.55) / 0.3, 0, 1)));
+  tube([[0,-0.26,-0.18],[0,-0.55,-0.24],[0,-0.88,-0.26],[0,-1.15,-0.36],[0,-1.55,-0.46],[0,-2.15,-0.55]], stemR,
+       Math.round(1150*Q), (u, P) => P.y > -0.62 ? SI.midbrain : P.y > -1.12 ? SI.pons : P.y > -1.58 ? SI.medulla : SI.cord,
+       false, {kind:3, fade:u => 1 - smooth(0.62, 1.0, u) * 0.9});
+  blob([0,-0.88,-0.16], [0.28,0.24,0.22], Math.round(380*Q), SI.pons, false, 0.75);  // pons
+  // --- faint interior haze (white matter) ---
+  for (let c = 0, guard = 0; c < Math.round(800*Q) && guard < 2e5; guard++){
+    const x = (rand()*2-1)*1.3, y = -0.8 + rand()*1.9, z = -1.7 + rand()*3.3;
+    if (sdCerebrum(x, y, z) > -0.10) continue;
+    add(x, y, z, 0, 1, 0, classifyCortex(x, y, z), 0.5, 4, 0.04); c++;
+  }
+  return { A, n };
+}
+
+/* =====================================================================
+   SHADERS
+   ===================================================================== */
+const BRAIN_VERT = `
+attribute vec3 aStart; attribute vec3 aNormal; attribute vec3 aColor;
+attribute float aStruct; attribute float aSeed; attribute float aSize; attribute float aFold; attribute float aHemi; attribute float aKind;
+uniform float uRegA[15]; uniform float uRegB[15];
+uniform vec4 uHotA[6]; uniform vec4 uHotB[6]; uniform float uHotAv[6]; uniform float uHotBv[6];
+uniform vec4 uStA; uniform vec4 uStB;   // dim, wave, spark
+uniform vec4 uLat;                      // A.cortex, A.cerebellum, B.cortex, B.cerebellum
+uniform vec3 uAccA; uniform vec3 uAccB;
+uniform vec4 uT;                        // time, intro, scanY, scanOn
+uniform vec4 uV;                        // hoverStruct, motion, pixelRatio, scale
+uniform float uCenterZ;
+uniform vec4 uFocus[4]; uniform float uFocusOn;
+varying vec3 vCol; varying float vHot;
+float hash(float n){ return fract(sin(n) * 43758.5453123); }
+void main(){
+  float time = uT.x, motion = uV.y;
+  // intro: particles spiral in from a disc
+  float k = clamp(uT.y * 1.6 - aSeed * 0.6, 0.0, 1.0);
+  float e = 1.0 - pow(1.0 - k, 3.0);
+  vec3 p = mix(aStart, position, e);
+  float ang = (1.0 - e) * 2.4, ca = cos(ang), sa = sin(ang);
+  p = vec3(ca * p.x + sa * p.z, p.y, -sa * p.x + ca * p.z);
+  vec4 wp = modelMatrix * vec4(p, 1.0);
+  vec4 mv = viewMatrix * wp;
+
+  // the scan front sweeps top to bottom: above it shows the new activity (B), below the old (A)
+  float w = smoothstep(uT.z - 0.16, uT.z + 0.16, wp.y);
+  int si = int(aStruct + 0.5);
+  float isCortex = 1.0 - step(0.5, aKind);
+  float isCereb = step(1.5, aKind) * (1.0 - step(2.5, aKind));
+  float latA = isCortex * uLat.x + isCereb * uLat.y;
+  float latB = isCortex * uLat.z + isCereb * uLat.w;
+  float rA = uRegA[si] * clamp(1.0 + latA * aHemi, 0.12, 1.6);
+  float rB = uRegB[si] * clamp(1.0 + latB * aHemi, 0.12, 1.6);
+  for (int i = 0; i < 6; i++){
+    vec3 da = position - uHotA[i].xyz; rA += uHotAv[i] * exp(-dot(da, da) / (uHotA[i].w * uHotA[i].w));
+    vec3 db = position - uHotB[i].xyz; rB += uHotBv[i] * exp(-dot(db, db) / (uHotB[i].w * uHotB[i].w));
+  }
+  float I = clamp(mix(rA, rB, w), 0.0, 1.25);
+  vec4 st = mix(uStA, uStB, w);
+  vec3 acc = mix(uAccA, uAccB, w);
+
+  // deep-sleep slow wave travelling front -> back (cortex + thalamus)
+  float waveT = isCortex + step(6.5, aStruct) * (1.0 - step(7.5, aStruct));
+  float sw = pow(0.5 + 0.5 * sin(6.2832 * (time * 0.42 * motion + position.z * 0.30)), 5.0);
+  I += st.y * waveT * sw * 0.95;
+
+  // individual neurons "firing": brief white-hot sparks, more often where activity is high
+  float T = 1.7, tt = time / T + aSeed * 13.0, slot = floor(tt), lt = fract(tt);
+  float r1 = hash(slot * 1.731 + aSeed * 57.3), r2 = hash(slot * 3.117 + aSeed * 91.7) * 0.75;
+  float prob = clamp(I * 0.3 - 0.05, 0.0, 0.38) * st.z * motion * step(aKind, 3.5);
+  float fire = step(r1, prob) * step(r2, lt) * exp(-(lt - r2) * T * 9.0);
+  float breathe = 1.0 + 0.12 * motion * sin(time * 1.3 + aSeed * 6.2832);
+
+  // holographic lighting: bright silhouettes, dimmer far side
+  vec3 nV = normalize(normalMatrix * aNormal);
+  float facing = dot(nV, normalize(-mv.xyz));
+  float surf = isCortex + isCereb;
+  float frontF = mix(1.0, mix(0.36, 1.0, smoothstep(-0.3, 0.3, facing)), surf);
+  float rim = pow(1.0 - abs(facing), 3.0) * surf;
+  float depthF = mix(0.5, 1.0, smoothstep(-1.7, 0.5, mv.z - uCenterZ));
+
+  float act = I * (0.45 + 0.55 * aFold);
+  float b = (0.10 + 0.09 * aFold + act * 0.36) * breathe * st.x * frontF;
+  b += rim * (0.10 + I * 0.14) * st.x;
+  b *= depthF;
+  b *= mix(1.0, 0.72, step(0.5, aKind) * (1.0 - step(1.5, aKind)));   // deep nuclei are dense: soften
+  b += fire * (0.5 + I * 0.3);
+  b *= 1.0 + 0.7 * (1.0 - step(0.5, abs(aStruct - uV.x)));   // hover highlight
+  b *= mix(1.0, 0.42, step(3.5, aKind));                       // interior haze is faint
+  // legend focus: picked structures stay lit, everything else fades to a ghost
+  int fi = si / 4;
+  float fsel = dot(uFocus[fi], vec4(equal(vec4(float(si - fi * 4)), vec4(0.0, 1.0, 2.0, 3.0))));
+  b *= mix(1.0, mix(0.12, 1.3, fsel), uFocusOn);
+  b *= smoothstep(0.22, 0.85, -mv.z);                           // fade particles right in front of the lens
+
+  float q = (wp.y - uT.z) / 0.035;
+  float band = exp(-q * q) * uT.w;                             // bright scan line
+  vec3 col = mix(aColor, vec3(1.0), clamp(fire * 0.65 + max(I - 0.9, 0.0) * 0.2, 0.0, 0.75));
+  col = mix(col, acc * 1.15 + 0.08, band * 0.85);
+  b += band * 0.42;
+  b *= mix(0.3, 1.0, e);
+
+  vCol = col * b;
+  vHot = clamp(fire + I * 0.25 + band * 0.6, 0.0, 1.0);
+  float size = aSize * (0.85 + I * 0.3 + fire * 0.7 + band * 0.55) * (0.85 + 0.3 * aFold);
+  size *= mix(1.0, mix(0.7, 1.12, fsel), uFocusOn);
+  gl_PointSize = min(size * uV.z * uV.w / -mv.z, 56.0 * uV.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const SPRITE_FRAG = `
+varying vec3 vCol; varying float vHot;
+void main(){
+  vec2 c = gl_PointCoord - 0.5;
+  float d = length(c) * 2.0;
+  if (d > 1.0) discard;
+  float core = exp(-d * d * 10.0);
+  float halo = exp(-d * d * 2.6) * (0.2 + 0.22 * vHot);
+  vec3 col = vCol * (core + halo) + vec3(core * vHot * 0.22) * length(vCol);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+const PATH_VERT = `
+attribute float aU; attribute float aLen; attribute float aMask; attribute float aSeed; attribute float aGain;
+uniform vec4 uT; uniform vec4 uV; uniform vec2 uIdx; uniform vec3 uAccA; uniform vec3 uAccB; uniform vec4 uStA; uniform vec4 uStB;
+uniform float uFocusOn;
+varying vec3 vCol; varying float vHot;
+float bit(float m, float i){ return mod(floor(m / exp2(i) + 0.001), 2.0); }
+void main(){
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vec4 mv = viewMatrix * wp;
+  float w = smoothstep(uT.z - 0.16, uT.z + 0.16, wp.y);
+  float on = mix(bit(aMask, uIdx.x), bit(aMask, uIdx.y), w) * smoothstep(0.85, 1.0, uT.y);
+  float motion = uV.y;
+  float h = fract(uT.x * (0.95 / aLen) * motion + aSeed);
+  float d = fract((h - aU) * 2.0);                 // two pulses per pathway
+  float comet = exp(-d * 6.0) * motion;
+  float ends = smoothstep(0.0, 0.07, aU) * smoothstep(1.0, 0.93, aU);
+  float dim = mix(uStA.x, uStB.x, w);
+  float fk = aGain * mix(1.0, 0.3, uFocusOn) * smoothstep(0.22, 0.85, -mv.z);
+  float b = on * ends * (mix(0.5, 0.2, motion) + comet * 1.5) * dim * dim * fk;
+  vCol = mix(uAccA, uAccB, w) * b + vec3(0.5) * comet * on * ends * fk;
+  vHot = comet;
+  gl_PointSize = min((0.05 + comet * 0.08 * aGain) * uV.z * uV.w / -mv.z, 48.0 * uV.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const DUST_VERT = `
+attribute float aSeed; uniform vec4 uT; uniform vec4 uV;
+varying vec3 vCol; varying float vHot;
+void main(){
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  float tw = 0.55 + 0.45 * sin(uT.x * (0.4 + aSeed) * uV.y + aSeed * 40.0);
+  vCol = vec3(0.35, 0.5, 0.9) * 0.22 * tw * smoothstep(0.0, 1.0, uT.y);
+  vHot = 0.0;
+  gl_PointSize = (0.05 + aSeed * 0.05) * uV.z * uV.w / -mv.z;
+  gl_Position = projectionMatrix * mv;
+}`;
+
+/* =====================================================================
+   BRAIN SCENE
+   ===================================================================== */
+function createBrain(canvas){
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false, powerPreference:'high-performance'}); }
+  catch (err){ return null; }
+  if (!renderer.getContext()) return null;
+  renderer.setClearColor(0x050810, 1);
+  const PR = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(PR);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+  // orbit = rotation centre, parked at the camera's aim point; group = the brain, shifted so `pivot` sits on that centre.
+  const C0 = new THREE.Vector3(0, -0.02, 0);
+  const PIV0 = new THREE.Vector3(0, -0.32, 0);            // default pivot: frames the whole brain
+  const pivot = PIV0.clone(), pivotT = PIV0.clone(), tmpV = new THREE.Vector3();
+  let zoom = 1, zoomT = 1, zoomFromFocus = false, baseDist = 6;
+  const ZMAX = 5, camDir = new THREE.Vector3(0, 0.34, 6).normalize();
+  const orbit = new THREE.Group(); orbit.position.copy(C0); scene.add(orbit);
+  const group = new THREE.Group(); group.position.copy(PIV0).negate(); orbit.add(group);
+  const wrap = canvas.parentElement;
+
+  // quality scales with the canvas width so phones stay smooth
+  const Q = clamp(canvas.getBoundingClientRect().width / 900, 0.5, 1);
+  const { A, n } = buildBrain(Q);
+
+  // centre + size of every structure, used to frame it when picked in the legend
+  const SST = STRUCTS.map(() => ({ n:0, c:new THREE.Vector3(), r:0.3 }));
+  {
+    const dist = STRUCTS.map(() => []);
+    for (let i = 0; i < n; i++){ if (A.kind[i] > 3.5) continue; const t = SST[A.st[i]]; t.n++; t.c.x += A.pos[i*3]; t.c.y += A.pos[i*3+1]; t.c.z += A.pos[i*3+2]; }
+    SST.forEach(t => { if (t.n) t.c.multiplyScalar(1 / t.n); });
+    for (let i = 0; i < n; i++){ if (A.kind[i] > 3.5) continue; const t = SST[A.st[i]], j = i * 3;
+      dist[A.st[i]].push(Math.hypot(A.pos[j] - t.c.x, A.pos[j+1] - t.c.y, A.pos[j+2] - t.c.z)); }
+    dist.forEach((d, k) => { if (d.length){ d.sort((a, b) => a - b); SST[k].r = d[Math.floor(d.length * 0.9)]; } });
+  }
+
+  // resolve landmarks onto the folded surface
+  for (const m of Object.values(MARKS)){
+    let [x, y, z] = m.p, nor = [0, 1, 0];
+    if (m.snap){
+      for (let k = 0; k < 14; k++){ const d = sdCerebrum(x, y, z), g = gradOf(sdCerebrum, x, y, z); x -= d*g[0]; y -= d*g[1]; z -= d*g[2]; if (Math.abs(d) < 1e-4) break; }
+      nor = gradOf(sdCerebrum, x, y, z);
+      if (m.inset){ x -= nor[0]*m.inset; y -= nor[1]*m.inset; z -= nor[2]*m.inset; }
+    }
+    m.pos = [x, y, z]; m.nor = nor;
+  }
+  const DEEP_OF = { hippocampus:'hippocampus', amygdala:'amygdala', hypothalamus:'hypothalamus', pituitary:'hypothalamus', thalamus:'thalamus', lgn:'thalamus',
+                    nacc:'striatum', caudate:'striatum', vta:'midbrain', pag:'midbrain', cerebR:'cerebellum', cerebL:'cerebellum' };
+  for (const [id, m] of Object.entries(MARKS)) m.struct = m.lobe ? SI[m.lobe] : DEEP_OF[id] ? SI[DEEP_OF[id]] : classifyCortex(m.pos[0], m.pos[1], m.pos[2]);
+  const markAt = (id, side, inner) => {
+    const m = MARKS[id], s = (side === 'R' && m.side !== 'X') ? -1 : 1, k = (inner && m.snap) ? 0.05 : 0;
+    return { p:[(m.pos[0] - m.nor[0]*k) * s, m.pos[1] - m.nor[1]*k, m.pos[2] - m.nor[2]*k], n:[m.nor[0]*s, m.nor[1], m.nor[2]], deep:!m.snap };
+  };
+
+  // shared uniforms
+  const U = {
+    uRegA:{value:new Float32Array(15)}, uRegB:{value:new Float32Array(15)},
+    uHotA:{value:Array.from({length:6}, () => new THREE.Vector4(0,-50,0,0.1))}, uHotB:{value:Array.from({length:6}, () => new THREE.Vector4(0,-50,0,0.1))},
+    uHotAv:{value:new Float32Array(6)}, uHotBv:{value:new Float32Array(6)},
+    uStA:{value:new THREE.Vector4(1,0,0.4,0)}, uStB:{value:new THREE.Vector4(1,0,0.4,0)}, uLat:{value:new THREE.Vector4()},
+    uAccA:{value:new THREE.Color('#00f0ff')}, uAccB:{value:new THREE.Color('#00f0ff')},
+    uT:{value:new THREE.Vector4(0, MOTION ? 0 : 1, -99, 0)}, uV:{value:new THREE.Vector4(-1, MOTION, PR, 500)},
+    uIdx:{value:new THREE.Vector2(-1, -1)}, uCenterZ:{value:-6},
+    uFocus:{value:[0, 1, 2, 3].map(() => new THREE.Vector4())}, uFocusOn:{value:0}
+  };
+
+  // brain particles
+  const geo = new THREE.BufferGeometry();
+  const attr = (name, arr, size) => geo.setAttribute(name, new THREE.BufferAttribute(arr.subarray(0, n * size), size));
+  attr('position', A.pos, 3); attr('aStart', A.start, 3); attr('aNormal', A.nor, 3); attr('aColor', A.col, 3);
+  attr('aStruct', A.st, 1); attr('aSeed', A.seed, 1); attr('aSize', A.size, 1); attr('aFold', A.fold, 1); attr('aHemi', A.hemi, 1); attr('aKind', A.kind, 1);
+  const additive = { transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending };
+  const brainPts = new THREE.Points(geo, new THREE.ShaderMaterial({ uniforms:U, vertexShader:BRAIN_VERT, fragmentShader:SPRITE_FRAG, ...additive }));
+  brainPts.frustumCulled = false; group.add(brainPts);
+
+  // pathways
+  {
+    const P = [], Uu = [], L = [], M = [], S = [], G = [];
+    for (const [pid, def0] of Object.entries(PATHS)){
+      let mask = 0; ACTIVITIES.forEach((a, i) => { if ((a.paths || []).includes(pid)) mask += Math.pow(2, i); });
+      if (!mask) continue;
+      const def = def0.mirrorOf ? PATHS[def0.mirrorOf] : def0, flip = def0.mirrorOf ? -1 : 1;
+      for (const side of (def.side === 'B' ? ['L', 'R'] : def.side === 'R' ? ['R'] : ['L'])){
+        const wps = def.pts.map(q => typeof q === 'string' ? markAt(q, side, true).p : (side === 'R' ? [-q[0], q[1], q[2]] : q))
+                           .map(q => [q[0] * flip, q[1], q[2]]);
+        const curve = new THREE.CatmullRomCurve3(wps.map(p => new THREE.Vector3(p[0], p[1], p[2])), false, 'centripetal');
+        const len = curve.getLength(), cnt = Math.max(24, Math.round(len / 0.016)), seed = rand(), v = new THREE.Vector3();
+        for (let i = 0; i < cnt; i++){
+          const u = i / (cnt - 1); curve.getPointAt(u, v);
+          P.push(v.x + (rand()-0.5)*0.012, v.y + (rand()-0.5)*0.012, v.z + (rand()-0.5)*0.012);
+          Uu.push(u); L.push(len); M.push(mask); S.push(seed); G.push(def0.gain || def.gain || 1);
+        }
+      }
+    }
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    pg.setAttribute('aU', new THREE.Float32BufferAttribute(Uu, 1)); pg.setAttribute('aLen', new THREE.Float32BufferAttribute(L, 1));
+    pg.setAttribute('aMask', new THREE.Float32BufferAttribute(M, 1)); pg.setAttribute('aSeed', new THREE.Float32BufferAttribute(S, 1));
+    pg.setAttribute('aGain', new THREE.Float32BufferAttribute(G, 1));
+    const paths = new THREE.Points(pg, new THREE.ShaderMaterial({ uniforms:U, vertexShader:PATH_VERT, fragmentShader:SPRITE_FRAG, ...additive }));
+    paths.frustumCulled = false; group.add(paths);
+  }
+  // background dust for depth
+  {
+    const DN = 420, P = new Float32Array(DN * 3), S = new Float32Array(DN);
+    for (let i = 0; i < DN; i++){
+      const th = rand() * Math.PI * 2, ph = Math.acos(rand() * 2 - 1), r = 7 + rand() * 9;
+      P[i*3] = Math.sin(ph) * Math.cos(th) * r; P[i*3+1] = Math.cos(ph) * r * 0.6; P[i*3+2] = Math.sin(ph) * Math.sin(th) * r - 4; S[i] = rand();
+    }
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.BufferAttribute(P, 3)); dg.setAttribute('aSeed', new THREE.BufferAttribute(S, 1));
+    const dust = new THREE.Points(dg, new THREE.ShaderMaterial({ uniforms:U, vertexShader:DUST_VERT, fragmentShader:SPRITE_FRAG, ...additive }));
+    dust.frustumCulled = false; scene.add(dust); dust.userData.spin = true; scene.userData.dust = dust;
+  }
+
+  /* ---------- activity state (A = previous, B = current) ---------- */
+  function stateOf(a){
+    const reg = new Float32Array(STRUCTS.length);
+    STRUCTS.forEach((s, i) => {
+      let v;
+      if (i <= 4) v = a.regions[s.group] || 0;   // lobes + cerebellum
+      else { const fb = s.group === 'brainstem' ? a.regions.brainstem : a.regions.limbic;
+             v = (a.structures && a.structures[s.id] != null) ? a.structures[s.id] : (fb || 0);
+             if (s.id === 'cord' && !(a.structures && a.structures.cord != null)) v = reg[SI.medulla] * 100 * 0.7; }
+      reg[i] = v / 100;
+    });
+    const hot = [];
+    (a.hot || []).forEach(h => {
+      const id = typeof h === 'string' ? h : h.id, v = typeof h === 'string' ? 0.85 : h.v, m = MARKS[id];
+      const sides = (typeof h === 'object' && h.side) ? [h.side] : (m.side === 'B' ? ['L', 'R'] : ['L']);
+      for (const side of sides){ const p = markAt(id, side).p; hot.push([p[0], p[1], p[2], (h.r || m.r || 0.2), v]); }
+    });
+    return { reg, hot:hot.slice(0, 6), lat:[(a.lat && a.lat.cortex) || 0, (a.lat && a.lat.cereb) || 0],
+             st:[a.dim ?? 1, a.wave ?? 0, a.spark ?? 1], acc:new THREE.Color(a.accent) };
+  }
+  function applyState(which, s){
+    U['uReg' + which].value.set(s.reg);
+    const H = U['uHot' + which].value, HV = U['uHot' + which + 'v'].value;
+    for (let i = 0; i < 6; i++){ const h = s.hot[i]; if (h){ H[i].set(h[0], h[1], h[2], h[3]); HV[i] = h[4]; } else { H[i].set(0, -50, 0, 0.1); HV[i] = 0; } }
+    U['uSt' + which].value.set(s.st[0], s.st[1], s.st[2], 0);
+    const Lt = U.uLat.value; if (which === 'A'){ Lt.x = s.lat[0]; Lt.y = s.lat[1]; } else { Lt.z = s.lat[0]; Lt.w = s.lat[1]; }
+    U['uAcc' + which].value.copy(s.acc);
+  }
+  let curState = { reg:new Float32Array(STRUCTS.length).fill(0.04), hot:[], lat:[0, 0], st:[1, 0, 0.4], acc:new THREE.Color('#00f0ff') };
+  applyState('A', curState); applyState('B', curState);
+
+  /* ---------- view: gentle sway around a preferred angle per activity ---------- */
+  let base = -1.3, pitch = 0.16, pitchT = 0.16, swayAmp = 0, swayPh = 0, vel = 0, tween = null, dragging = false;
+  // spinDir 0: gentle sway around each activity's best view. ±1: after the user spins the brain,
+  // it keeps turning that way (a fling coasts down to a steady cruise speed).
+  let spinDir = 0, dragDir = 0;
+  const CRUISE = 0.16;
+  function setView(yaw, p){
+    const TAU = Math.PI * 2;
+    let to = yaw;
+    if (spinDir && MOTION){          // head for the view by continuing in the spin direction when that's not too far
+      let d = ((to - base) * spinDir) % TAU; if (d < 0) d += TAU;
+      to = base + spinDir * (d <= Math.PI * 1.3 ? d : d - TAU);
+    } else { while (to - base > Math.PI) to -= TAU; while (to - base < -Math.PI) to += TAU; }
+    pitchT = p;
+    if (!MOTION){ base = to; pitch = p; return; }
+    const D = Math.abs(to - base), dir = Math.sign(to - base) || 1;
+    if (spinDir && dir === spinDir && D < 0.35){ tween = null; return; }   // already there; keep spinning
+    const T = clamp(0.9 + D * 0.3, 1.2, 2.4);
+    const v1 = (spinDir && dir === spinDir) ? spinDir * CRUISE : 0;      // arrive already cruising
+    let v0 = clamp(vel, -1.5, 1.5);
+    if (Math.sign(v0) === dir) v0 = dir * Math.min(Math.abs(v0), Math.max(0, 3 * D / T - Math.abs(v1)));   // no overshoot
+    tween = { from:base, to, t:0, v0, v1, dur:T };
+  }
+
+  /* ---------- scan sweep ---------- */
+  const SCAN_TOP = 1.95, SCAN_BOT = -2.35;
+  let scan = null, intro = MOTION ? 0 : 1, pendingScan = false, actIdx = -1;
+  function startScan(){ scan = { t:0 }; U.uT.value.z = SCAN_TOP; }
+  function setActivity(idx){
+    const a = ACTIVITIES[idx];
+    applyState('A', curState);
+    U.uIdx.value.x = actIdx; actIdx = idx; U.uIdx.value.y = idx;
+    curState = stateOf(a); applyState('B', curState);
+    setView(a.view[0], a.view[1]);
+    Labels.set(a);
+    $('scanline').style.setProperty('--c', a.accent);
+    if (!MOTION){ U.uT.value.z = -99; U.uT.value.w = 0; scan = null; return; }
+    if (intro < 1) { pendingScan = true; U.uT.value.z = SCAN_TOP; return; }
+    startScan();
+  }
+
+  /* ---------- legend focus: highlight structures and fly the camera to them ---------- */
+  const focusVal = new Float32Array(16), focusTgt = new Float32Array(16);
+  let focusOn = 0, focusOnT = 0, locked = [], previewList = null, focusSet = new Set();
+  function applyFocus(){
+    focusSet = new Set(previewList || locked);
+    for (let i = 0; i < 16; i++) focusTgt[i] = focusSet.has(i) ? 1 : 0;
+    focusOnT = focusSet.size ? 1 : 0;
+  }
+  function frameStructs(list){
+    let N = 0; const c = new THREE.Vector3();
+    list.forEach(i => { const t = SST[i]; if (t.n){ c.addScaledVector(t.c, t.n); N += t.n; } });
+    if (!N) return;
+    c.multiplyScalar(1 / N);
+    let r = 0; list.forEach(i => { const t = SST[i]; if (t.n) r = Math.max(r, t.c.distanceTo(c) + t.r); });
+    const fit = r / (0.72 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(1, camera.aspect));
+    zoomT = clamp(baseDist / Math.max(fit, 0.05), 1, ZMAX);
+    pivotT.copy(c); zoomFromFocus = true;
+  }
+  function resetView(){ zoomT = 1; pivotT.copy(PIV0); zoomFromFocus = false; }
+  function setFocus(list){
+    locked = list.slice(); applyFocus();
+    if (list.length) frameStructs(list); else if (zoomFromFocus) resetView();
+  }
+  function preview(list){ previewList = list && list.length ? list.slice() : null; applyFocus(); }
+
+  /* ---------- labels anchored to structures (callouts beside the silhouette) ---------- */
+  const Labels = (() => {
+    const svg = $('leaders'), layer = $('tags'), NS = 'http://www.w3.org/2000/svg';
+    let items = [];
+    const hemi = ['L', 'R'].map(s => { const el = document.createElement('div'); el.className = 'tag hemi'; el.textContent = s; layer.appendChild(el);
+      return { el, p:new THREE.Vector3(s === 'L' ? 0.72 : -0.72, 1.36, -0.15) }; });
+    const EXT = [[1.35,0.2,-0.1],[-1.35,0.2,-0.1],[0.6,1.22,-0.1],[-0.6,1.22,-0.1],[0.55,0.1,1.68],[-0.55,0.1,1.68],
+                 [0.45,0.1,-1.82],[-0.45,0.1,-1.82],[0.9,-0.9,-0.1],[-0.9,-0.9,-0.1],[0.9,-1.06,-1.12],[-0.9,-1.06,-1.12],[0,-1.5,-1.1]]
+                .map(p => new THREE.Vector3(p[0], p[1], p[2]));
+    function set(a){
+      items.forEach(it => { it.el.style.opacity = 0; it.line.style.opacity = 0; it.dot.style.opacity = 0;
+        setTimeout(() => { it.el.remove(); it.line.remove(); it.dot.remove(); }, 500); });
+      items = (a.labels || []).map(l => {
+        const id = typeof l === 'string' ? l : l.id, m = MARKS[id];
+        const el = document.createElement('div'); el.className = 'tag'; el.style.setProperty('--c', a.accent);
+        el.textContent = (typeof l === 'object' && l.text) || m.name; layer.appendChild(el);
+        const line = document.createElementNS(NS, 'polyline'); line.setAttribute('stroke', a.accent); line.setAttribute('fill', 'none'); line.style.opacity = 0; svg.appendChild(line);
+        const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('r', 2.6); dot.setAttribute('fill', a.accent); dot.style.opacity = 0; svg.appendChild(dot);
+        const force = (typeof l === 'object' && l.side) || null;
+        return { id, m, el, line, dot, w:0, h:0, pick:force || 'L', force };
+      });
+    }
+    const v = new THREE.Vector3(), nv = new THREE.Vector3();
+    function project(local, W, H){ v.copy(local).applyMatrix4(group.matrixWorld); const vz = v.clone().applyMatrix4(camera.matrixWorldInverse).z;
+      v.project(camera); return { x:(v.x * 0.5 + 0.5) * W, y:(-v.y * 0.5 + 0.5) * H, vz }; }
+    function update(W, H, scanY, ready){
+      let minX = 1e9, maxX = -1e9, cx = 0;
+      for (const e of EXT){ const s = project(e, W, H); minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x); }
+      cx = (minX + maxX) / 2;
+      const hs = hemi.map(h => project(h.p, W, H));
+      const close = Math.hypot(hs[0].x - hs[1].x, hs[0].y - hs[1].y) < 44;
+      hemi.forEach((h, i) => { const s = hs[i], far = close && s.vz < hs[1 - i].vz;
+        h.el.style.transform = `translate(${s.x - 4}px,${s.y - 6}px)`; h.el.style.opacity = ready && !far ? 0.7 : 0; });
+      const cols = { L:[], R:[] };
+      for (const it of items){
+        const cand = it.force ? [it.force] : (it.m.side === 'B' ? ['L', 'R'] : ['L']);
+        const pts = cand.map(sd => { const mk = markAt(it.id, sd); return { sd, mk, s:project(v.set(mk.p[0], mk.p[1], mk.p[2]), W, H) }; });
+        let cur = pts.find(p => p.sd === it.pick) || pts[0];
+        const best = pts.reduce((a, b) => b.s.vz > a.s.vz ? b : a);
+        if (best !== cur && best.s.vz > cur.s.vz + 0.15){ cur = best; it.pick = best.sd; }
+        const wy = v.set(cur.mk.p[0], cur.mk.p[1], cur.mk.p[2]).applyMatrix4(group.matrixWorld).y;
+        let alpha = 1;
+        if (!cur.mk.deep && !it.m.medial){   // fade labels for spots on the far side of the brain
+          nv.set(cur.mk.n[0], cur.mk.n[1], cur.mk.n[2]).transformDirection(group.matrixWorld).transformDirection(camera.matrixWorldInverse);
+          v.set(cur.mk.p[0], cur.mk.p[1], cur.mk.p[2]).applyMatrix4(group.matrixWorld).applyMatrix4(camera.matrixWorldInverse).normalize();
+          alpha = -nv.dot(v) > 0.05 ? 1 : 0.45;
+        }
+        if (!it.w){ it.w = it.el.offsetWidth || 120; it.h = it.el.offsetHeight || 20; }
+        it.cur = { x:cur.s.x, y:cur.s.y, vis:ready && scanY < wy - 0.05, alpha };
+        cols[cur.s.x < cx ? 'L' : 'R'].push(it);
+      }
+      for (const side of ['L', 'R']){
+        const col = cols[side].sort((a, b) => a.cur.y - b.cur.y);
+        let prevBottom = -1e9;
+        for (const it of col){
+          const gap = 16;
+          let left = side === 'L' ? minX - gap - it.w : maxX + gap;
+          left = clamp(left, 6, W - it.w - 6);
+          let top = clamp(it.cur.y - it.h / 2, 26, H - it.h - 28);
+          if (top < prevBottom + 6) top = prevBottom + 6;
+          prevBottom = top + it.h;
+          const ly = top + it.h / 2, edge = side === 'L' ? left + it.w : left, elbow = side === 'L' ? edge + 10 : edge - 10;
+          it.el.style.transform = `translate(${left}px,${top}px)`;
+          it.line.setAttribute('points', `${it.cur.x},${it.cur.y} ${elbow},${ly} ${edge},${ly}`);
+          it.dot.setAttribute('cx', it.cur.x); it.dot.setAttribute('cy', it.cur.y);
+          let o = it.cur.vis ? it.cur.alpha : 0;
+          if (focusOn > 0.01 && !focusSet.has(it.m.struct)) o *= 1 - 0.78 * focusOn;
+          if (it.cur.x < -4 || it.cur.x > W + 4 || it.cur.y < -4 || it.cur.y > H + 4) o = 0;
+          it.el.style.opacity = o; it.line.style.opacity = o * 0.7; it.dot.style.opacity = o;
+        }
+      }
+    }
+    return { set, update, names:() => items.map(it => it.el.textContent) };
+  })();
+
+  /* ---------- hover / tap probe ---------- */
+  const probe = $('probe'), raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const inv = new THREE.Matrix4(), ro = new THREE.Vector3(), rd = new THREE.Vector3();
+  let probeAt = null, probeTimer = 0;
+  function pickIndex(px, py){   // nearest visible particle under a canvas point (only highlighted ones while focusing)
+    ndc.set(px / W * 2 - 1, -(py / H) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    inv.copy(group.matrixWorld).invert();
+    ro.copy(raycaster.ray.origin).applyMatrix4(inv);
+    rd.copy(raycaster.ray.direction).transformDirection(inv);
+    let best = -1, bestT = 1e9;
+    const pos = A.pos, thr = 0.05 / Math.sqrt(zoom), thr2 = thr * thr, only = focusSet.size ? focusSet : null;
+    for (let i = 0; i < n; i++){
+      if (A.kind[i] > 3.5 || (only && !only.has(A.st[i]))) continue;
+      const x = pos[i*3] - ro.x, y = pos[i*3+1] - ro.y, z = pos[i*3+2] - ro.z;
+      const t = x * rd.x + y * rd.y + z * rd.z;
+      if (t < 0.3 || t >= bestT) continue;
+      const qx = x - t * rd.x, qy = y - t * rd.y, qz = z - t * rd.z;
+      if (qx*qx + qy*qy + qz*qz < thr2){ best = i; bestT = t; }
+    }
+    return best;
+  }
+  function runProbe(px, py, W, H){
+    const best = pickIndex(px, py);
+    if (best < 0){ hideProbe(); return; }
+    const s = STRUCTS[A.st[best]];
+    const side = A.hemi[best] > 0 ? 'Left ' : 'Right ';
+    const title = (A.kind[best] === 0 && s.group !== 'limbic') ? side + s.name : s.name.charAt(0).toUpperCase() + s.name.slice(1);
+    probe.innerHTML = `<b>${title}</b><span>${s.info}</span>`;
+    const pw = probe.offsetWidth, ph = probe.offsetHeight;
+    const lx = px + 16 + pw > W ? px - 16 - pw : px + 16, ly = clamp(py + 16 + ph > H ? py - 16 - ph : py + 16, 4, H - ph - 4);
+    probe.style.transform = `translate(${lx}px,${ly}px)`;
+    probe.classList.add('on');
+    U.uV.value.x = A.st[best];
+  }
+  function hideProbe(){ probe.classList.remove('on'); U.uV.value.x = -1; }
+
+  /* ---------- zoom (towards the point under the cursor) ---------- */
+  function zoomBy(f, clientX, clientY){
+    const z0 = zoomT, z1 = clamp(z0 * f, 1, ZMAX);
+    if (Math.abs(z1 - z0) < 1e-5) return;
+    if (z1 > z0){
+      const r = canvas.getBoundingClientRect(), i = pickIndex(clientX - r.left, clientY - r.top);
+      if (i >= 0) pivotT.lerp(tmpV.set(A.pos[i*3], A.pos[i*3+1], A.pos[i*3+2]), 1 - z0 / z1);   // keeps that spot under the cursor
+    } else {
+      pivotT.sub(PIV0).multiplyScalar((z1 - 1) / Math.max(1e-6, z0 - 1)).add(PIV0);            // drifts back to the full view
+    }
+    zoomT = z1; zoomFromFocus = false;
+  }
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  const zoomHint = $('zoomHint'); let hintTimer = 0;
+  zoomHint.textContent = `Hold ${isMac ? '⌘' : 'Ctrl'} and scroll to zoom`;
+  canvas.addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.metaKey)){   // plain scrolling keeps scrolling the page
+      zoomHint.classList.add('on'); clearTimeout(hintTimer); hintTimer = setTimeout(() => zoomHint.classList.remove('on'), 1300); return;
+    }
+    e.preventDefault();
+    const dy = e.deltaMode === 1 ? e.deltaY * 18 : (e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY);
+    zoomBy(Math.exp(-clamp(dy, -120, 120) * 0.0022), e.clientX, e.clientY);
+    zoomHint.classList.remove('on');
+  }, { passive:false });
+  const touches = new Map(); let pinchD = 0, gScale = 1;
+  const pinchDist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  canvas.addEventListener('gesturestart', e => { if (touches.size) return; e.preventDefault(); gScale = 1; });           // Safari trackpad pinch
+  canvas.addEventListener('gesturechange', e => { if (touches.size) return; e.preventDefault(); zoomBy(e.scale / gScale, e.clientX, e.clientY); gScale = e.scale; });
+  const resetBtn = $('viewReset'); let resetOn = false;
+  resetBtn.addEventListener('click', resetView);
+
+  /* ---------- pointer interaction ---------- */
+  let lastX = 0, lastY = 0, lastT = 0, moved = 0, movedX = 0;
+  canvas.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (e.pointerType === 'touch'){
+      touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if (touches.size >= 2){   // second finger: switch from rotating to pinch-zooming
+        dragging = false; canvas.classList.remove('dragging'); pinchD = pinchDist(); hideProbe();
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        return;
+      }
+    }
+    dragging = true; moved = 0; movedX = 0; dragDir = 0; lastX = e.clientX; lastY = e.clientY; lastT = e.timeStamp; vel = 0; tween = null;
+    base += swayAmp * Math.sin(swayPh); swayAmp = 0;   // grab the brain exactly where it is
+    canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerType === 'touch' && touches.has(e.pointerId)){
+      touches.set(e.pointerId, { x:e.clientX, y:e.clientY });
+      if (touches.size >= 2){
+        const d = pinchDist(), [a, b] = [...touches.values()];
+        if (pinchD > 0) zoomBy(d / pinchD, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        pinchD = d; return;
+      }
+    }
+    if (dragging){
+      const dx = e.clientX - lastX, dy = e.clientY - lastY, dt = Math.max(8, e.timeStamp - lastT) / 1000;
+      moved += Math.abs(dx) + Math.abs(dy); movedX += Math.abs(dx);
+      base += dx * 0.0075; pitchT = clamp(pitchT + dy * 0.005, -0.6, 1.2); pitch = pitchT;
+      vel = lerp(vel, dx * 0.0075 / dt, 0.35);
+      if (Math.abs(vel) > 0.05) dragDir = Math.sign(vel);
+      lastX = e.clientX; lastY = e.clientY; lastT = e.timeStamp;
+      if (moved > 4) hideProbe();
+    } else if (e.pointerType === 'mouse'){ probeAt = [e.offsetX, e.offsetY]; }
+  });
+  const endDrag = e => {
+    if (!dragging) return;
+    dragging = false; canvas.classList.remove('dragging');
+    if (e.type === 'pointerup' && moved < 6 && e.pointerType !== 'mouse'){ probeAt = [e.offsetX, e.offsetY]; probeTimer = 2.8; }
+    if (e.timeStamp - lastT > 90) vel = 0;                         // paused before letting go: no fling
+    vel = clamp(vel, -6, 6);
+    if (e.type === 'pointerup' && movedX > 12 && dragDir && MOTION) spinDir = dragDir;
+    if (!MOTION) vel = 0;
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  const endTouch = e => { if (e.pointerType === 'touch'){ touches.delete(e.pointerId); if (touches.size < 2) pinchD = 0; } };
+  canvas.addEventListener('pointerup', endTouch);
+  canvas.addEventListener('pointercancel', endTouch);
+  canvas.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hideProbe(); });
+
+  /* ---------- sizing ---------- */
+  let W = 1, H = 1, pointScale = 500;
+  function resize(){
+    const r = canvas.getBoundingClientRect(); W = Math.max(1, r.width); H = Math.max(1, r.height);
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H;
+    baseDist = Math.max(5.9, 5.4 / camera.aspect);
+    camDir.set(0, 0.34, baseDist).normalize();
+    camera.updateProjectionMatrix();
+    pointScale = H / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+  }
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+
+  /* ---------- loop ---------- */
+  let visible = true, last = performance.now(), time = 0;
+  new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe(canvas);
+  const cz = new THREE.Vector3(), scanPt = new THREE.Vector3(), scanEl = $('scanline');
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, Math.max(0, (now - last) / 1000)); last = now;
+    if (!visible) return;
+    time += dt; if (time > 3600) time -= 3600;
+
+    if (intro < 1){ intro = Math.min(1, intro + dt / 2.6); if (intro >= 1 && pendingScan){ pendingScan = false; startScan(); } }
+    if (tween){                      // Hermite curve: leaves at the current speed, arrives at cruise speed
+      tween.t = Math.min(1, tween.t + dt / tween.dur);
+      const u = tween.t, u2 = u * u, u3 = u2 * u, T = tween.dur;
+      base = (2*u3 - 3*u2 + 1) * tween.from + (u3 - 2*u2 + u) * T * tween.v0 + (-2*u3 + 3*u2) * tween.to + (u3 - u2) * T * tween.v1;
+      if (tween.t >= 1){ vel = tween.v1; tween = null; }
+    } else if (!dragging){
+      if (spinDir) vel += (spinDir * CRUISE * MOTION - vel) * (1 - Math.exp(-dt * 0.9));
+      else vel *= Math.exp(-dt * 2.2);
+      base += vel * dt;
+    }
+    const swayT = (tween || dragging || !MOTION || spinDir) ? 0 : 0.34;
+    swayAmp += (swayT - swayAmp) * (1 - Math.exp(-dt * 0.9));
+    swayPh += dt * 0.21 * MOTION;
+    pitch += (pitchT - pitch) * (1 - Math.exp(-dt * 3));
+    orbit.rotation.set(pitch, base + swayAmp * Math.sin(swayPh), 0);
+    orbit.position.set(C0.x, C0.y + 0.035 * Math.sin(time * 0.6) * MOTION, C0.z);
+    // zoom + pivot glide (instant with reduced motion)
+    const kz = MOTION ? 1 - Math.exp(-dt * 3.2) : 1;
+    zoom = Math.exp(lerp(Math.log(zoom), Math.log(zoomT), kz));
+    pivot.lerp(pivotT, kz);
+    group.position.copy(pivot).negate();
+    camera.position.copy(C0).addScaledVector(camDir, baseDist / zoom);
+    U.uV.value.w = pointScale * Math.pow(zoom, -0.55);
+    camera.lookAt(C0);
+    // legend focus fade
+    const kf = MOTION ? 1 - Math.exp(-dt * 6) : 1;
+    focusOn += (focusOnT - focusOn) * kf;
+    for (let i = 0; i < 16; i++) focusVal[i] += (focusTgt[i] - focusVal[i]) * kf;
+    U.uFocus.value.forEach((v4, r) => v4.set(focusVal[r*4], focusVal[r*4+1], focusVal[r*4+2], focusVal[r*4+3]));
+    U.uFocusOn.value = focusOn;
+    const zoomed = zoomT > 1.01 || pivotT.distanceToSquared(PIV0) > 1e-4;
+    if (zoomed !== resetOn){ resetOn = zoomed; resetBtn.classList.toggle('on', zoomed); }
+    scene.userData.dust.rotation.y = time * 0.01;
+
+    if (scan){
+      scan.t = Math.min(1, scan.t + dt / 1.35);
+      scanPt.set(0, U.uT.value.z, 0).project(camera);
+      scanEl.style.transform = `translateY(${(-scanPt.y * 0.5 + 0.5) * H}px)`;
+      scanEl.style.opacity = Math.min(1, scan.t * 10, (1 - scan.t) * 10) * 0.9;
+      U.uT.value.z = lerp(SCAN_TOP, SCAN_BOT, easeInOut(scan.t));
+      U.uT.value.w = Math.min(1, scan.t * 8, (1 - scan.t) * 8);
+      if (scan.t >= 1){ scan = null; U.uT.value.z = -99; U.uT.value.w = 0; scanEl.style.opacity = 0; }
+    }
+    U.uT.value.x = time; U.uT.value.y = intro;
+    orbit.updateMatrixWorld(); camera.updateMatrixWorld();
+    cz.set(0, 0.1, -0.1).lerp(pivot, clamp(zoom - 1, 0, 1)).applyMatrix4(group.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+    U.uCenterZ.value = cz.z;
+
+    renderer.render(scene, camera);
+
+    Labels.update(W, H, U.uT.value.z, intro >= 1);
+    if (probeAt){ runProbe(probeAt[0], probeAt[1], W, H); probeAt = null; }
+    if (probeTimer > 0){ probeTimer -= dt; if (probeTimer <= 0) hideProbe(); }
+    Trace.tick(dt);
+  }
+  requestAnimationFrame(frame);
+
+  motionQuery.addEventListener && motionQuery.addEventListener('change', e => { MOTION = e.matches ? 0 : 1; U.uV.value.y = MOTION; if (!MOTION) intro = 1; });
+  return { setActivity, labelNames:() => Labels.names(), setFocus, preview, resetView };
+}
+
+/* =====================================================================
+   EEG TRACE (synthetic, shaped to each band; 1.6 s window, real time)
+   ===================================================================== */
+const Trace = (() => {
+  const cv = $('trace'), ctx = cv.getContext('2d');
+  let kind = 'beat', prev = null, blend = 1, t = 0, acc = 0, color = '#00f0ff', w = 1, h = 1, d = 1;
+  const P = Math.PI * 2, s = Math.sin;
+  function sig(k, t){
+    const nz = 0.05*s(P*37.3*t + 1.3) + 0.04*s(P*53.1*t + 0.2) + 0.03*s(P*71.9*t + 2.1) + 0.05*s(P*3.7*t + 0.7);
+    switch (k){
+      case 'delta': return 0.85*s(P*1.0*t) + 0.22*s(P*2.3*t + 1.0) + nz;
+      case 'theta': return 0.62*s(P*6.0*t)*(0.75 + 0.25*s(P*0.7*t)) + 0.15*s(P*1.3*t) + nz;
+      case 'syll':  return 0.62*s(P*5.0*t)*(0.55 + 0.45*Math.max(0, s(P*0.9*t))) + nz;
+      case 'alpha': return 0.58*s(P*10.0*t)*(0.65 + 0.35*s(P*0.45*t)) + nz;
+      case 'beat':  return 0.5*s(P*20*t)*(0.25 + 0.75*Math.pow(0.5 + 0.5*Math.cos(P*2.0*t), 3)) + 0.12*s(P*6.1*t) + nz;
+      case 'erd': { const c = ((t % 3) + 3) % 3;
+        const env = 0.6 - 0.46*smooth(0.9,1.1,c) + 0.46*smooth(1.9,2.1,c) + 0.4*smooth(1.95,2.15,c) - 0.4*smooth(2.4,2.9,c);
+        return 0.55*s(P*20*t)*env + nz; }
+      case 'gamma': return 0.2*s(P*50*t) + 0.12*s(P*63*t + 1.1) + 0.08*s(P*41*t + 2.2) + nz*0.8;
+      default: return 0.34*s(P*2.1*t + 0.3) + 0.24*s(P*4.7*t + 1.9) + 0.17*s(P*9.3*t + 0.8) + 0.11*s(P*17.2*t + 2.6) + 0.07*s(P*31.5*t + 1.2) + nz;
+    }
+  }
+  function resize(){ const r = cv.getBoundingClientRect(); d = Math.min(window.devicePixelRatio || 1, 2);
+    w = Math.max(1, Math.round(r.width * d)); h = Math.max(1, Math.round(r.height * d)); cv.width = w; cv.height = h; draw(); }
+  function draw(){
+    ctx.clearRect(0, 0, w, h);
+    const WIN = 1.6, pps = w / WIN;
+    ctx.strokeStyle = 'rgba(148,163,184,.14)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(148,163,184,.6)'; ctx.fillRect(w - pps, h - 2 * d, pps, 1 * d);
+    ctx.font = `${9 * d}px ui-monospace,Menlo,monospace`; ctx.textAlign = 'right'; ctx.fillText('1 s', w - 2 * d, h - 5 * d);
+    ctx.strokeStyle = color; ctx.lineWidth = 1.3 * d; ctx.shadowColor = color; ctx.shadowBlur = 6 * d;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x++){
+      const tt = t - WIN + (x / w) * WIN;
+      let val = sig(kind, tt); if (blend < 1 && prev) val = lerp(sig(prev, tt), val, blend);
+      const y = h * 0.42 - val * h * 0.36;
+      x ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.stroke(); ctx.shadowBlur = 0;
+  }
+  new ResizeObserver(resize).observe(cv);
+  return {
+    set(k, c){ prev = kind; kind = k; color = c; blend = MOTION ? 0 : 1; if (!MOTION) draw(); },
+    tick(dt){ if (!MOTION) return; t += dt; blend = Math.min(1, blend + dt / 0.6); acc += dt; if (acc < 1 / 30) return; acc = 0; draw(); }
+  };
+})();
+
+/* =====================================================================
+   UI WIRING
+   ===================================================================== */
+const picker = $('picker');
+let hand = 'R';
+function heading(text){ const p = document.createElement('p'); p.className = 'pick-group'; p.textContent = text; picker.appendChild(p); }
+function setHand(h){
+  hand = h; const sw = picker.querySelector('.hand-switch'); if (!sw) return;
+  sw.dataset.hand = h; sw.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.hand === h));
+}
+function addCard(a){
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'pick-btn'; btn.style.setProperty('--dot', a.accent);
+  btn.setAttribute('aria-pressed', 'false'); btn.dataset.id = a.id;
+  btn.dataset.ids = a.id === 'movement' ? 'movement movementL' : a.id;
+  btn.innerHTML = `<span class="dot"></span><span><span class="name">${a.card || a.name}</span><span class="meta">${a.rhythm.band}${a.rhythm.range ? ' · ' + a.rhythm.range : ''}</span></span>`;
+  if (a.id !== 'movement'){ btn.addEventListener('click', () => select(a.id)); picker.appendChild(btn); return; }
+  // the hand card carries a left/right switch
+  const item = document.createElement('div'); item.className = 'pick-item'; item.style.setProperty('--dot', a.accent);
+  btn.addEventListener('click', () => select(hand === 'L' ? 'movementL' : 'movement'));
+  const sw = document.createElement('div'); sw.className = 'hand-switch'; sw.dataset.hand = hand;
+  sw.setAttribute('role', 'group'); sw.setAttribute('aria-label', 'Which hand');
+  sw.innerHTML = '<span class="thumb" aria-hidden="true"></span>'
+    + '<button type="button" data-hand="L" aria-label="Left hand" aria-pressed="false">L</button>'
+    + '<button type="button" data-hand="R" aria-label="Right hand" aria-pressed="true">R</button>';
+  sw.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { setHand(b.dataset.hand); select(hand === 'L' ? 'movementL' : 'movement'); }));
+  item.append(btn, sw); picker.appendChild(item);
+}
+heading('Leans left or right');
+ACTIVITIES.filter(a => a.lateral && !a.hidden).forEach(addCard);
+heading('Both hemispheres');
+ACTIVITIES.filter(a => !a.lateral && !a.hidden).forEach(addCard);
+$('hudHint').textContent = matchMedia('(hover: hover)').matches
+  ? `Drag to rotate · ${/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl'}+scroll to zoom · Hover to identify`
+  : 'Drag to rotate · Pinch to zoom · Tap to identify';
+
+const canvas = $('brain');
+let brain = null;
+if (window.THREE){ try { brain = createBrain(canvas); } catch (err){ console.error(err); brain = null; } }
+if (!brain){
+  const msg = document.createElement('div'); msg.className = 'nogl';
+  msg.textContent = 'The 3D model needs WebGL, which isn’t available in this browser. The activity details still update on the right.';
+  $('wrap').appendChild(msg);
+}
+
+let current = null, autoOn = false, autoKeys = null;
+function select(id, opts = {}){
+  const idx = ACTIVITIES.findIndex(a => a.id === id);
+  if (idx < 0 || ACTIVITIES[idx] === current) return;
+  const a = current = ACTIVITIES[idx];
+  document.querySelectorAll('.pick-btn').forEach(b => { const on = b.dataset.ids.split(' ').includes(id); b.classList.toggle('active', on); b.setAttribute('aria-pressed', on); });
+  if (id === 'movement' || id === 'movementL') setHand(id === 'movementL' ? 'L' : 'R');
+  $('hudLabel').textContent = a.name; $('hudLabel').style.color = a.accent;
+  const B = a.bold;
+  $('boldLabel').textContent = B.label || 'fMRI BOLD change';
+  $('boldVal').textContent = B.text; $('boldVal').style.color = a.accent;
+  $('boldBarWrap').style.display = B.pct == null ? 'none' : '';
+  $('boldBar').style.width = (B.pct == null ? 0 : Math.min(100, B.pct / 3 * 100)) + '%';
+  $('boldBar').style.background = a.accent;
+  $('boldNote').textContent = B.note || 'Typical peak change in the most active area. Real task effects are small, usually under about 3%.';
+  $('freqVal').innerHTML = a.rhythm.band + (a.rhythm.range ? `<small>${a.rhythm.range}</small>` : '');
+  $('freqVal').style.color = a.accent; $('freqVal').style.textShadow = `0 0 20px ${a.accent}55`;
+  $('rhythmNote').textContent = a.rhythm.note;
+  Trace.set(a.rhythm.kind, a.accent);
+  $('whyBody').textContent = a.why;
+  $('whyFact').hidden = !a.fact;
+  if (a.fact) $('whyFact').innerHTML = `<b>Extra fact:</b> ${a.fact}`;
+  $('whyPanel').style.borderColor = a.accent + '44';
+  const chips = $('chips'); chips.innerHTML = '';
+  Object.entries(a.regions).sort((x, y) => y[1] - x[1]).slice(0, 3).forEach(([key, val]) => {
+    const r = REGIONS[key], c = document.createElement('span');
+    c.className = 'chip'; c.style.borderColor = r.color + '55'; c.style.color = r.color;
+    c.textContent = `${r.label} ${val}%`; chips.appendChild(c);
+  });
+  if (brain){
+    brain.setActivity(idx);
+    canvas.setAttribute('aria-label', `3D brain model showing ${a.name.toLowerCase()}. Highlighted: ${brain.labelNames().join(', ')}.`);
+  }
+  if (autoOn && !opts.fromFilter) applyAutoHighlight(a);   // user picked a stimulus: mark its regions
+}
+select('music');
+
+/* ---------- legend: hover to preview, click to single out and fly in ---------- */
+// Order: alphabetical by the head word (the "Lobe" entries are indexed under L), each group sorted alphabetically inside.
+const LEGEND = [
+  {key:'g-brainstem', label:'Brainstem',      color:'#94a3b8', s:['midbrain','pons','medulla'], info:'Breathing, heart rate, arousal and the dopamine-making VTA'},
+  {key:'g-cerebellum',label:'Cerebellum',     color:'#e024c3', s:['cerebellum']},
+  {key:'g-limbic',    label:'Limbic & deep nuclei', color:'#ff2e63', s:['amygdala','cingulate','hippocampus','hypothalamus','striatum','thalamus'],
+   title:'Limbic system & deep nuclei', info:'Memory, emotion, reward and the brain’s relay hubs'},
+  {key:'g-frontal',   label:'Frontal Lobe',   color:'#2a64f6', s:['frontal']},
+  {key:'g-occipital', label:'Occipital Lobe', color:'#00ff87', s:['occipital']},
+  {key:'g-parietal',  label:'Parietal Lobe',  color:'#ffb800', s:['parietal']},
+  {key:'g-temporal',  label:'Temporal Lobe',  color:'#00f0ff', s:['temporal']}
+];
+// Deep structures follow their parent entry's order above (Brainstem, then Limbic). The brainstem parts run top to bottom
+// (midbrain, pons, medulla), the standard anatomical order; the limbic ones are alphabetical.
+const SUBLEGEND = [['midbrain','pons','medulla'], ['amygdala','cingulate','hippocampus','hypothalamus','striatum','thalamus']]
+  .flatMap((grp, gi) => grp.map((id, i) => {
+    const st = STRUCTS[SI[id]], label = id === 'cingulate' ? 'Cingulate' : st.name;
+    return { key:'s-' + id, label, title: st.name, color: st.color || REGIONS[st.group].color,
+             s:[id], info: st.info, sub:true, groupStart: gi > 0 && i === 0 };
+  }));
+const ENTRIES = [...LEGEND, ...SUBLEGEND], entry = k => ENTRIES.find(e => e.key === k);
+let lockedKeys = [];
+const structsOf = keys => [...new Set(keys.flatMap(k => entry(k).s.map(id => SI[id])))];
+const cap = $('focusCap');
+function showCaption(list, sub){
+  if (!list.length){ cap.classList.remove('on'); return; }
+  if (list.length === 1 && !sub){
+    const e = list[0]; cap.style.setProperty('--c', e.color);
+    cap.innerHTML = `<b>${e.title || e.label}</b><span>${e.info || STRUCTS[SI[e.s[0]]].info}</span>`;
+  } else {
+    const names = list.map(e => e.title || e.label);
+    cap.style.setProperty('--c', sub && current ? current.accent : '#94a3b8');
+    cap.innerHTML = `<b>${names.length > 3 ? names.length + ' regions highlighted' : names.join(' + ')}</b><span>${sub || 'Highlighted together'}</span>`;
+  }
+  cap.classList.add('on');
+}
+function syncLegend(){
+  document.querySelectorAll('.legend .lg[data-key]').forEach(b => b.setAttribute('aria-pressed', lockedKeys.includes(b.dataset.key)));
+  $('legendClear').hidden = !lockedKeys.length;
+  const auto = autoKeys && current && sameKeys(lockedKeys, autoKeys);
+  showCaption(lockedKeys.map(entry), auto ? `Regions involved in ${current.name.toLowerCase()}` : null);
+}
+function toggleEntry(key){
+  lockedKeys = lockedKeys.includes(key) ? lockedKeys.filter(k => k !== key) : [...lockedKeys, key];
+  syncLegend();
+  if (brain){ brain.preview(null); brain.setFocus(structsOf(lockedKeys)); }
+  applyStimulusFilter();
+}
+function clearEntries(){ lockedKeys = []; syncLegend(); if (brain){ brain.preview(null); brain.setFocus([]); } applyStimulusFilter(); }
+function makeEntry(e, parent){
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'lg' + (e.sub ? ' sub-item' : ''); b.dataset.key = e.key;
+  b.style.setProperty('--c', e.color); b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = `<i aria-hidden="true"></i>${e.label}`;
+  b.addEventListener('click', () => toggleEntry(e.key));
+  const on = () => { if (!brain) return; brain.preview(structsOf([e.key])); showCaption([e]); };
+  const off = () => { if (!brain) return; brain.preview(null); syncLegend(); };
+  b.addEventListener('pointerenter', ev => { if (ev.pointerType === 'mouse') on(); });
+  b.addEventListener('pointerleave', ev => { if (ev.pointerType === 'mouse') off(); });
+  b.addEventListener('focus', () => { if (b.matches(':focus-visible')) on(); });
+  b.addEventListener('blur', off);
+  parent.appendChild(b);
+}
+LEGEND.forEach(e => makeEntry(e, $('legend')));
+{ const c = document.createElement('button'); c.type = 'button'; c.className = 'lg clear'; c.id = 'legendClear'; c.hidden = true;
+  c.textContent = 'Show all'; c.addEventListener('click', clearEntries); $('legend').appendChild(c); }
+{ const k = document.createElement('span'); k.className = 'k'; k.textContent = 'Deep structures'; $('legendSub').appendChild(k); }
+SUBLEGEND.forEach(e => {
+  if (e.groupStart){ const d = document.createElement('span'); d.className = 'sep'; d.setAttribute('aria-hidden', 'true'); $('legendSub').appendChild(d); }
+  makeEntry(e, $('legendSub'));
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && lockedKeys.length) clearEntries(); });
+
+/* ---------- stimulus filter: with the switch on, only stimuli that involve the highlighted regions stay selectable ---------- */
+let filterOn = false;
+{ const sw = (id, label) => `<button type="button" class="filter-switch" id="${id}" role="switch" aria-checked="false">`
+                          + `<span class="track" aria-hidden="true"><span class="knob"></span></span>${label}</button>`;
+  $('legendCtl').innerHTML = sw('filterSwitch', 'Filter stimuli') + sw('autoSwitch', 'Auto-highlight regions')
+                           + '<span class="filter-count" id="filterCount" aria-live="polite"></span>';
+  $('filterSwitch').addEventListener('click', () => { filterOn = !filterOn; $('filterSwitch').setAttribute('aria-checked', filterOn); applyStimulusFilter(); });
+  $('autoSwitch').addEventListener('click', () => {
+    autoOn = !autoOn; $('autoSwitch').setAttribute('aria-checked', autoOn);
+    if (autoOn){ if (current) applyAutoHighlight(current); }
+    else { const mine = autoKeys && sameKeys(lockedKeys, autoKeys); autoKeys = null; if (mine) clearEntries(); else syncLegend(); }
+  });
+}
+/* ---------- auto-highlight: picking a stimulus marks the legend entries for the regions it involves ---------- */
+function sameKeys(x, y){ return x.length === y.length && x.every(k => y.includes(k)); }
+function keysFor(a){   // most specific entries: a whole group only when all of its parts are involved
+  const inv = involvedStructs(a), keys = [];
+  LEGEND.forEach(g => {
+    const ids = g.s.map(id => SI[id]), hit = ids.filter(i => inv.has(i));
+    if (!hit.length) return;
+    if (hit.length === ids.length) keys.push(g.key);
+    else hit.forEach(i => { const e = SUBLEGEND.find(x => x.s[0] === STRUCTS[i].id); if (e) keys.push(e.key); });
+  });
+  return keys;
+}
+function applyAutoHighlight(a){
+  lockedKeys = keysFor(a); autoKeys = lockedKeys.slice();
+  syncLegend();
+  if (brain){ brain.preview(null); brain.setFocus(structsOf(lockedKeys)); }   // zoom to fit + darken the rest
+  applyStimulusFilter();
+}
+// A stimulus "involves" a structure when it drives it at 45%+ or names it in a callout/hotspot (deactivations don't count).
+function involvedStructs(a){
+  if (a._inv) return a._inv;
+  const set = new Set(), val = STRUCTS.map((s, i) => {
+    if (i <= 4) return (a.regions[s.group] || 0) / 100;
+    const fb = s.group === 'brainstem' ? a.regions.brainstem : a.regions.limbic;
+    return ((a.structures && a.structures[s.id] != null) ? a.structures[s.id] : (fb || 0)) / 100;
+  });
+  val.forEach((v, i) => { if (v >= 0.45) set.add(i); });
+  [...(a.labels || []), ...(a.hot || [])].forEach(l => {
+    const m = MARKS[typeof l === 'string' ? l : l.id];
+    if (m && m.struct != null && val[m.struct] >= 0.2) set.add(m.struct);
+  });
+  (a.also || []).forEach(id => set.add(SI[id]));
+  return (a._inv = set);
+}
+const actById = id => ACTIVITIES.find(a => a.id === id);
+const matches = (a, want) => [...involvedStructs(a)].some(i => want.has(i));
+function revealCard(el){   // scroll only the stimulus list (never the page) so a card is in view
+  const pr = picker.getBoundingClientRect(), r = el.getBoundingClientRect();
+  if (r.left < pr.left || r.right > pr.right) picker.scrollBy({ left:r.left - pr.left - 8, behavior:MOTION ? 'smooth' : 'auto' });
+  if (r.top < pr.top || r.bottom > pr.bottom) picker.scrollBy({ top:r.top - pr.top - 8, behavior:MOTION ? 'smooth' : 'auto' });
+}
+function applyStimulusFilter(){
+  const want = filterOn && lockedKeys.length ? new Set(structsOf(lockedKeys)) : null;
+  const cards = [...picker.querySelectorAll('.pick-btn')];
+  const ok = cards.map(b => !want || b.dataset.ids.split(' ').some(id => matches(actById(id), want)));
+  const n = ok.filter(Boolean).length, none = want && n === 0;
+  cards.forEach((b, i) => {
+    const on = ok[i] || none;
+    b.disabled = !on;
+    const item = b.closest('.pick-item');
+    if (item){ item.classList.toggle('off', !on); item.querySelectorAll('.hand-switch button').forEach(x => x.disabled = !on); }
+  });
+  $('filterCount').textContent = !want ? '' : (none ? 'No stimulus matches' : `${n} of ${cards.length} match`);
+  if (want && !none && current && !matches(current, want)){   // current one doesn't involve it: jump to the first that does
+    const first = cards[ok.indexOf(true)];
+    select(first.dataset.id === 'movement' ? (hand === 'L' ? 'movementL' : 'movement') : first.dataset.id, { fromFilter:true });
+    revealCard(first.closest('.pick-item') || first);
+  }
+}
+})();
+</script>
+</body>
+</html>
