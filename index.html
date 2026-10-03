@@ -106,7 +106,12 @@ h1{font-size:clamp(22px,3vw,32px);font-weight:800;text-transform:uppercase;margi
 .legend .k{padding:5px 8px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#3f4b5e;}
 .legend .sep{width:1px;height:12px;margin:0 6px;background:#263244;}
 .legend.ctl + .legend{margin-top:0;}
-.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;}
+.stage-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 16px;margin:0 0 10px;}
+.head-group{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;}
+.seg button[aria-pressed="true"]{color:#0b0f1c;}
+.seg button[aria-pressed="true"]:hover{color:#0b0f1c;}
+.seg button:disabled{opacity:.5;cursor:progress;}
+.res-count{font:9px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:#64748b;}
 .stage-head .label{margin:0;}
 .seg{position:relative;display:flex;padding:2px;border:1px solid #334155;border-radius:999px;background:rgba(3,5,12,.85);}
 .seg button{position:relative;z-index:1;padding:4px 12px;border:0;border-radius:999px;background:none;cursor:pointer;
@@ -115,7 +120,7 @@ h1{font-size:clamp(22px,3vw,32px);font-weight:800;text-transform:uppercase;margi
 .seg button[aria-checked="true"]{color:#0b0f1c;}
 .seg button:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
 .seg-thumb{position:absolute;top:2px;bottom:2px;left:0;width:0;border-radius:999px;background:var(--t,#94a3b8);
-  box-shadow:0 0 10px var(--t,#94a3b8);transition:transform .28s cubic-bezier(.3,.7,.3,1),width .28s,background-color .28s,box-shadow .28s;}
+  box-shadow:0 0 10px var(--t,#94a3b8);transition:transform .28s cubic-bezier(.3,.7,.3,1),width .28s,background-color .28s,box-shadow .28s,opacity .22s;}
 .sexpanel[hidden]{display:none;}
 #sexChart{display:block;width:100%;height:146px;margin:4px 0 6px;}
 .sex-notes p{margin:8px 0 0;font-size:12px;line-height:1.5;color:#94a3b8;}
@@ -192,12 +197,23 @@ footer{text-align:center;padding:24px;font-size:9px;letter-spacing:.25em;text-tr
     </div>
     <div class="stage">
       <div class="stage-head">
+        <div class="head-group">
         <p class="label">Brain model</p>
         <div class="seg" id="sexSeg" role="radiogroup" aria-label="Brain model">
           <span class="seg-thumb" aria-hidden="true"></span>
           <button type="button" role="radio" aria-checked="true" data-sex="avg">Average</button>
           <button type="button" role="radio" aria-checked="false" data-sex="f">Female</button>
           <button type="button" role="radio" aria-checked="false" data-sex="m">Male</button>
+        </div>
+        </div>
+        <div class="head-group" role="group" aria-label="Resolution">
+          <p class="label">Resolution</p>
+          <div class="seg" id="resSeg" style="--t:#00f0ff">
+            <span class="seg-thumb" aria-hidden="true" style="opacity:0"></span>
+            <button type="button" class="res-btn" data-res="3" aria-pressed="false" aria-label="Three times as many points">3×</button>
+            <button type="button" class="res-btn" data-res="9" aria-pressed="false" aria-label="Nine times as many points" title="Most detailed; may be slow on phones and older devices">9×</button>
+          </div>
+          <span class="res-count" id="resCount" aria-live="polite"></span>
         </div>
       </div>
       <div class="canvas-wrap" id="wrap">
@@ -209,6 +225,7 @@ footer{text-align:center;padding:24px;font-size:9px;letter-spacing:.25em;text-tr
         <div class="focus-cap" id="focusCap" aria-live="polite"></div>
         <button type="button" class="view-reset" id="viewReset">Reset view</button>
         <div class="zoom-hint" id="zoomHint" aria-hidden="true"></div>
+        <div class="zoom-hint" id="buildNote" role="status"></div>
         <div class="hud tl">SUBJ-001<span class="long"> · <span id="hudModel">Stylized whole-brain model</span></span></div>
         <div class="hud tr">● Tracking</div>
         <div class="hud bl" id="hudHint">Drag to rotate · Hover to identify</div>
@@ -330,7 +347,7 @@ const MARKS = {
   inah3:      {name:'INAH-3',                     p:[0.0,-0.30,0.21], side:'X', deep:1},
   wAcross:    {name:'Across hemispheres',         p:[0.0,0.36,0.05], side:'X', deep:1},
   wWithin:    {name:'Within a hemisphere',        p:[0.80,0.61,0.0], side:'B', deep:1},
-  wCereb:     {name:'Cerebellar connections',     p:[0.0,-0.96,-1.45], side:'X', deep:1},
+  wCereb:     {name:'Cerebellar connections',     p:[0.55,-0.98,-1.08], side:'X', deep:1},
   vlpfc:      {name:'Ventrolateral prefrontal cortex', p:[1.05,-0.12,0.85], snap:1, side:'B', r:0.2},
   f3:         {name:'Frontal cortex (EEG site F3)', p:[0.72,0.88,0.78], snap:1, side:'B', r:0.28},
   insulaAnt:  {name:'Anterior insula',            p:[0.81,-0.12,0.26], side:'B', r:0.18, lobe:'insula'},
@@ -697,13 +714,14 @@ function classifyCortex(x, y, z){
 /* =====================================================================
    PARTICLE CLOUD BUILDER
    ===================================================================== */
-function buildBrain(Q){
+function buildBrain(Qbase, D = 1){
+  const Q = Qbase * D;   // counts scale with density; sprites shrink so the brain doesn't wash out
   const MAX = Math.round(26000 * Q) + 200;
   const A = { pos:new Float32Array(MAX*3), start:new Float32Array(MAX*3), nor:new Float32Array(MAX*3), col:new Float32Array(MAX*3),
               st:new Float32Array(MAX), seed:new Float32Array(MAX), size:new Float32Array(MAX), fold:new Float32Array(MAX),
               hemi:new Float32Array(MAX), kind:new Float32Array(MAX) };
   let n = 0;
-  const SIZE_K = 1 / Math.sqrt(Q);
+  const SIZE_K = 1 / Math.sqrt(Qbase) * Math.pow(D, -0.4);
   const tmp = new THREE.Color();
   const colorOf = s => tmp.set(STRUCTS[s].color || REGIONS[STRUCTS[s].group].color);
   function add(x, y, z, nx, ny, nz, s, fold, kind, size){
@@ -722,7 +740,7 @@ function buildBrain(Q){
 
   // --- cerebral cortex: sample the folded surface ---
   const NC = Math.round(15500 * Q);
-  for (let c = 0, guard = 0; c < NC && guard < 5e6; guard++){
+  for (let c = 0, guard = 0; c < NC && guard < 5e6 * D; guard++){
     const x = (rand() * 2 - 1) * 1.40, y = -0.95 + rand() * 2.22, z = -1.84 + rand() * 3.56;
     const d = sdCerebrum(x, y, z);
     if (d > 0.012 || d < -0.012) continue;
@@ -738,7 +756,7 @@ function buildBrain(Q){
   }
   // --- cerebellum with folia ---
   const NCB = Math.round(3400 * Q);
-  for (let c = 0, guard = 0; c < NCB && guard < 3e6; guard++){
+  for (let c = 0, guard = 0; c < NCB && guard < 3e6 * D; guard++){
     const x = (rand() * 2 - 1) * 1.0, y = -1.5 + rand() * 0.9, z = -1.72 + rand() * 1.2;
     const d = sdCereb(x, y, z);
     if (Math.abs(d) > 0.012) continue;
@@ -788,7 +806,7 @@ function buildBrain(Q){
        Math.round(250*Q), () => SI.striatum, true);                                     // caudate
   // --- insula: folded cortex hidden deep inside the lateral (Sylvian) fissure ---
   for (const sx of [1, -1]){
-    for (let c = 0, guard = 0, N = Math.round(440 * Q); c < N && guard < 2e5; guard++){
+    for (let c = 0, guard = 0, N = Math.round(440 * Q); c < N && guard < 2e5 * D; guard++){
       const u = rand() * 2 - 1, v = rand() * 2 - 1;                 // u: back -> front, v: down -> up
       if (u * u * 0.9 + v * v > 1) continue;                        // oval patch
       const z = 0.02 + u * 0.42, y = sylvianY(z) + 0.10 + v * 0.17;  // follows the fissure's slope
@@ -805,7 +823,7 @@ function buildBrain(Q){
        false, {kind:3, fade:u => 1 - smooth(0.62, 1.0, u) * 0.9});
   blob([0,-0.88,-0.16], [0.28,0.24,0.22], Math.round(380*Q), SI.pons, false, 0.75);  // pons
   // --- faint interior haze (white matter) ---
-  for (let c = 0, guard = 0; c < Math.round(800*Q) && guard < 2e5; guard++){
+  for (let c = 0, guard = 0; c < Math.round(800*Q) && guard < 2e5 * D; guard++){
     const x = (rand()*2-1)*1.3, y = -0.8 + rand()*1.9, z = -1.7 + rand()*3.3;
     if (sdCerebrum(x, y, z) > -0.10) continue;
     add(x, y, z, 0, 1, 0, classifyCortex(x, y, z), 0.5, 4, 0.04); c++;
@@ -830,7 +848,7 @@ uniform vec4 uT;                        // time, intro, scanY, scanOn
 uniform vec4 uV;                        // hoverStruct, motion, pixelRatio, scale
 uniform float uCenterZ;
 uniform vec4 uSexHot; uniform float uSexV;
-uniform vec4 uFocus[4]; uniform float uFocusOn; uniform float uDimAll;
+uniform vec4 uFocus[4]; uniform float uFocusOn; uniform float uDimAll; uniform float uDen;
 varying vec3 vCol; varying float vHot;
 float hash(float n){ return fract(sin(n) * 43758.5453123); }
 void main(){
@@ -895,7 +913,7 @@ void main(){
   float fsel = dot(uFocus[fi], vec4(equal(vec4(float(si - fi * 4)), vec4(0.0, 1.0, 2.0, 3.0))));
   b *= mix(1.0, mix(0.12, 1.3, fsel), uFocusOn);
   b *= smoothstep(0.22, 0.85, -mv.z);                           // fade particles right in front of the lens
-  b *= uDimAll;                                                 // dimmed while the wiring overlay is shown
+  b *= uDimAll * uDen;                                          // dimmed while the wiring overlay is shown; density compensation
 
   float q = (wp.y - uT.z) / 0.035;
   float band = exp(-q * q) * uT.w;                             // bright scan line
@@ -1008,11 +1026,12 @@ function createBrain(canvas){
 
   // quality scales with the canvas width so phones stay smooth
   const Q = clamp(canvas.getBoundingClientRect().width / 900, 0.5, 1);
-  const { A, n } = buildBrain(Q);
+  let { A, n } = buildBrain(Q);
 
   // centre + size of every structure, used to frame it when picked in the legend
   const SST = STRUCTS.map(() => ({ n:0, c:new THREE.Vector3(), r:0.3 }));
-  {
+  function computeSST(){
+    SST.forEach(t => { t.n = 0; t.c.set(0, 0, 0); t.r = 0.3; });
     const dist = STRUCTS.map(() => []);
     for (let i = 0; i < n; i++){ if (A.kind[i] > 3.5) continue; const t = SST[A.st[i]]; t.n++; t.c.x += A.pos[i*3]; t.c.y += A.pos[i*3+1]; t.c.z += A.pos[i*3+2]; }
     SST.forEach(t => { if (t.n) t.c.multiplyScalar(1 / t.n); });
@@ -1020,6 +1039,7 @@ function createBrain(canvas){
       dist[A.st[i]].push(Math.hypot(A.pos[j] - t.c.x, A.pos[j+1] - t.c.y, A.pos[j+2] - t.c.z)); }
     dist.forEach((d, k) => { if (d.length){ d.sort((a, b) => a - b); SST[k].r = d[Math.floor(d.length * 0.9)]; } });
   }
+  computeSST();
 
   // resolve landmarks onto the folded surface
   for (const m of Object.values(MARKS)){
@@ -1050,14 +1070,18 @@ function createBrain(canvas){
     uIdx:{value:new THREE.Vector2(-1, -1)}, uCenterZ:{value:-6},
     uFocus:{value:[0, 1, 2, 3].map(() => new THREE.Vector4())}, uFocusOn:{value:0},
     uSexHot:{value:new THREE.Vector4(0, -50, 0, 0.05)}, uSexV:{value:0},
-    uWire:{value:new THREE.Vector4(0.5, 0.5, 0, 0)}, uDimAll:{value:1}
+    uWire:{value:new THREE.Vector4(0.5, 0.5, 0, 0)}, uDimAll:{value:1}, uDen:{value:1}
   };
 
   // brain particles
-  const geo = new THREE.BufferGeometry();
-  const attr = (name, arr, size) => geo.setAttribute(name, new THREE.BufferAttribute(arr.subarray(0, n * size), size));
-  attr('position', A.pos, 3); attr('aStart', A.start, 3); attr('aNormal', A.nor, 3); attr('aColor', A.col, 3);
-  attr('aStruct', A.st, 1); attr('aSeed', A.seed, 1); attr('aSize', A.size, 1); attr('aFold', A.fold, 1); attr('aHemi', A.hemi, 1); attr('aKind', A.kind, 1);
+  function makeGeo(A, n){
+    const g = new THREE.BufferGeometry();
+    const attr = (name, arr, size) => g.setAttribute(name, new THREE.BufferAttribute(arr.subarray(0, n * size), size));
+    attr('position', A.pos, 3); attr('aStart', A.start, 3); attr('aNormal', A.nor, 3); attr('aColor', A.col, 3);
+    attr('aStruct', A.st, 1); attr('aSeed', A.seed, 1); attr('aSize', A.size, 1); attr('aFold', A.fold, 1); attr('aHemi', A.hemi, 1); attr('aKind', A.kind, 1);
+    return g;
+  }
+  const geo = makeGeo(A, n);
   const additive = { transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending };
   const brainPts = new THREE.Points(geo, new THREE.ShaderMaterial({ uniforms:U, vertexShader:BRAIN_VERT, fragmentShader:SPRITE_FRAG, ...additive }));
   brainPts.frustumCulled = false; group.add(brainPts);
@@ -1134,9 +1158,11 @@ function createBrain(canvas){
       const pts = t.map(q => typeof q === 'string' ? NP[q] : q).map(p => sx < 0 ? mir(p) : p);
       addCurve(pts, 1, 0, 3, 0.04);
     }
-    // cerebellum: across (through the vermis) and within each cerebellar hemisphere
-    for (const [a, mid] of [['cbP', [0,-0.98,-1.6]], ['cbL', [0,-1.1,-1.25]], ['cbA', [0,-0.84,-0.9]]])
-      addCurve([NP[a], [NP[a][0] * 0.4, mid[1] + 0.02, (NP[a][2] + mid[2]) / 2], mid, [-NP[a][0] * 0.4, mid[1] + 0.02, (NP[a][2] + mid[2]) / 2], mir(NP[a])], 0, 1, 2, 0.03);
+    // cerebellum. Stronger in males: LEFT cerebellar hemisphere -> RIGHT (contralateral) cortex. These links cross sides
+    // anatomically (dentate -> superior cerebellar peduncle -> midbrain crossing -> right thalamus -> cortex).
+    for (const [src, tgt, via] of [['cbL', 'pre', [-0.45,0.40,0.02]], ['cbL', 'mfg', [-0.50,0.45,0.50]], ['cbA', 'ipl', [-0.60,0.35,-0.45]]])
+      addCurve([NP[src], [0.30,-0.92,-0.95], [0.15,-0.72,-0.62], [0,-0.52,-0.36], [-0.12,-0.40,-0.30], [-0.19,-0.05,-0.12], via, mir(NP[tgt])], 0, 1, 2, 0.025);
+    // stronger in females ("the opposite pattern"): same-side connections within each cerebellar hemisphere
     for (const sx of [1, -1]){
       const m = p => sx < 0 ? mir(p) : p;
       addCurve([m(NP.cbA), m([0.55,-0.95,-1.05]), m(NP.cbP)], 1, 1, 2, 0.03);
@@ -1241,7 +1267,7 @@ function createBrain(canvas){
     const L = [{ id:'inah3', text: sexMode === 'm' ? 'INAH-3 (larger in males)' : 'INAH-3 (smaller in females)' }];
     if (wireOn) L.push({ id:'wAcross', text:(sexMode === 'f' ? '▲' : '▼') + ' Across hemispheres' },
                        { id:'wWithin', text:(sexMode === 'm' ? '▲' : '▼') + ' Within, front to back' },
-                       { id:'wCereb', text:'Cerebellum: pattern reverses' });
+                       { id:'wCereb', text:(sexMode === 'm' ? '▲' : '▼') + ' Left cerebellum ↔ right cortex' });
     return L;
   };
   let wireOn = true;
@@ -1577,7 +1603,29 @@ function createBrain(canvas){
   requestAnimationFrame(frame);
 
   motionQuery.addEventListener && motionQuery.addEventListener('change', e => { MOTION = e.matches ? 0 : 1; U.uV.value.y = MOTION; if (!MOTION) intro = 1; });
-  return { setActivity, labelNames:() => Labels.names(), setFocus, preview, resetView, setSex, setWire, topView };
+  /* ---------- resolution: 1x (default), 3x or 9x points; each model is built once, on demand ---------- */
+  const builds = { 1: { A, n, geo } };
+  let density = 1, building = false;
+  async function setDensity(k){
+    if (building || k === density) return n;
+    building = true;
+    let bld = builds[k];
+    if (!bld){
+      const note = $('buildNote'); note.textContent = `Building ${k}× model…`; note.classList.add('on');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));   // let the note paint first
+      const r = buildBrain(Q, k);
+      bld = builds[k] = { A:r.A, n:r.n, geo:makeGeo(r.A, r.n) };
+      note.classList.remove('on');
+    }
+    A = bld.A; n = bld.n; brainPts.geometry = bld.geo; density = k;
+    computeSST();
+    U.uDen.value = Math.pow(k, -0.2);
+    if (MOTION && intro >= 1){ applyState('A', curState); U.uIdx.value.x = actIdx; startScan(); }   // re-image sweep
+    building = false;
+    return n;
+  }
+
+  return { setDensity, pointCount:() => n, setActivity, labelNames:() => Labels.names(), setFocus, preview, resetView, setSex, setWire, topView };
 }
 
 /* =====================================================================
@@ -1726,7 +1774,7 @@ const SEX_NOTES = `
   <p><b>Real but tiny.</b> INAH-3, a cluster of neurons in the hypothalamus (shown enlarged here), is larger and holds more neurons in males.</p>
   <p><b>Texture.</b> Female cortex is slightly thicker on average; male brains vary more from person to person.</p>
   <p><b>Mosaic.</b> Few brains are consistently “male-typical” or “female-typical,” yet algorithms can often guess sex from a whole scan, largely through size.</p>
-  <p><b>Wiring.</b> In a 2014 scan study of 949 people aged 8–22, female brains averaged relatively more connections between the hemispheres (orange) and male brains more within each hemisphere, front to back (blue); in the cerebellum the pattern reversed. ▲ marks the type that was stronger on average for this sex. The overlay exaggerates the contrast so it can be seen: these are group averages with large overlap, the study reported no effect sizes, and larger brains of either sex show the same shift, so how much is due to sex itself is still debated.</p>
+  <p><b>Wiring.</b> In a 2014 scan study of 949 people aged 8–22, female brains averaged relatively more connections between the hemispheres (orange) and male brains more within each hemisphere, front to back (blue); in the cerebellum the pattern reversed, with males showing stronger links from the left cerebellum to the cortex on the opposite side. The cerebellum’s links with the cortex normally cross sides, so these count as “between hemispheres” even though they are its main circuit. ▲ marks the type that was stronger on average for this sex. The overlay exaggerates the contrast so it can be seen: these are group averages with large overlap, the study reported no effect sizes, and larger brains of either sex show the same shift, so how much is due to sex itself is still debated.</p>
   <p><b>Myth.</b> Language isn’t more lateralized in men: meta-analyses find no sex difference.</p>`;
 const SEX_LIFE = {
   f:'<p><b>Life changes.</b> Pregnancy trims gray matter in social-cognition regions for at least two years, which researchers see as specialization for parenting rather than loss.</p>',
@@ -1783,8 +1831,33 @@ sexSeg.addEventListener('keydown', e => {   // radio-group arrow keys
   const order = ['avg', 'f', 'm'], i = order.indexOf(sexMode), next = order[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3];
   setSexMode(next); sexSeg.querySelector(`button[data-sex="${next}"]`).focus(); e.preventDefault();
 });
-new ResizeObserver(() => { placeSexThumb(); if (sexMode !== 'avg') drawSexChart(); }).observe(sexSeg.parentElement);
+new ResizeObserver(() => { placeSexThumb(); if (typeof placeResThumb === 'function') placeResThumb(); if (sexMode !== 'avg') drawSexChart(); }).observe(sexSeg.parentElement);
 placeSexThumb();
+
+/* ---------- resolution toggles: 3x / 9x (mutually exclusive; click the active one again for 1x) ---------- */
+const resBtns = [...document.querySelectorAll('.res-btn')], resThumb = $('resSeg').querySelector('.seg-thumb');
+function placeResThumb(){
+  const on = resBtns.find(b => b.getAttribute('aria-pressed') === 'true');
+  if (!on){ resThumb.style.opacity = 0; return; }                      // nothing selected: fade out in place
+  if (resThumb.style.opacity === '0'){                                  // appearing: jump to the option, then fade in
+    resThumb.style.transition = 'none';
+    resThumb.style.width = on.offsetWidth + 'px'; resThumb.style.transform = `translateX(${on.offsetLeft}px)`;
+    void resThumb.offsetWidth; resThumb.style.transition = '';
+  }
+  resThumb.style.width = on.offsetWidth + 'px'; resThumb.style.transform = `translateX(${on.offsetLeft}px)`; resThumb.style.opacity = 1;
+}
+const fmtPts = k => (k >= 1000 ? Math.round(k / 1000) + 'k' : k) + ' points';
+async function setRes(k){
+  if (!brain) return;
+  resBtns.forEach(b => b.disabled = true);
+  await brain.setDensity(k);
+  resBtns.forEach(b => { b.disabled = false; b.setAttribute('aria-pressed', +b.dataset.res === k); });
+  placeResThumb();
+  $('resCount').textContent = fmtPts(brain.pointCount());
+}
+resBtns.forEach(b => b.addEventListener('click', () => setRes(b.getAttribute('aria-pressed') === 'true' ? 1 : +b.dataset.res)));
+if (brain) $('resCount').textContent = fmtPts(brain.pointCount());
+else resBtns.forEach(b => b.disabled = true);
 
 /* ---------- legend: hover to preview, click to single out and fly in ---------- */
 // Order: alphabetical by the head word (the "Lobe" entries are indexed under L), each group sorted alphabetically inside.
