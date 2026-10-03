@@ -96,6 +96,7 @@ h1{font-size:clamp(22px,3vw,32px);font-weight:800;text-transform:uppercase;margi
 .legend .lg{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid transparent;border-radius:2px;background:none;cursor:pointer;
   font:inherit;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#64748b;transition:color .2s,border-color .2s,background-color .2s;}
 .legend .lg:hover{color:#cbd5e1;}
+.legend .lg.involved{border-color:color-mix(in srgb, var(--c) 55%, transparent);}
 .legend .lg[aria-pressed="true"]{color:#f1f5f9;border-color:color-mix(in srgb, var(--c) 55%, transparent);background:color-mix(in srgb, var(--c) 14%, transparent);}
 .legend .lg:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
 .legend .lg.clear{color:#94a3b8;border-color:#334155;}
@@ -105,6 +106,26 @@ h1{font-size:clamp(22px,3vw,32px);font-weight:800;text-transform:uppercase;margi
 .legend .k{padding:5px 8px;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#3f4b5e;}
 .legend .sep{width:1px;height:12px;margin:0 6px;background:#263244;}
 .legend.ctl + .legend{margin-top:0;}
+.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 10px;}
+.stage-head .label{margin:0;}
+.seg{position:relative;display:flex;padding:2px;border:1px solid #334155;border-radius:999px;background:rgba(3,5,12,.85);}
+.seg button{position:relative;z-index:1;padding:4px 12px;border:0;border-radius:999px;background:none;cursor:pointer;
+  font:600 10px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;transition:color .25s;}
+.seg button:hover{color:#e2e8f0;}
+.seg button[aria-checked="true"]{color:#0b0f1c;}
+.seg button:focus-visible{outline:2px solid var(--cyan);outline-offset:1px;}
+.seg-thumb{position:absolute;top:2px;bottom:2px;left:0;width:0;border-radius:999px;background:var(--t,#94a3b8);
+  box-shadow:0 0 10px var(--t,#94a3b8);transition:transform .28s cubic-bezier(.3,.7,.3,1),width .28s,background-color .28s,box-shadow .28s;}
+.sexpanel[hidden]{display:none;}
+#sexChart{display:block;width:100%;height:146px;margin:4px 0 6px;}
+.sex-notes p{margin:8px 0 0;font-size:12px;line-height:1.5;color:#94a3b8;}
+.sex-notes b{color:#e2e8f0;font-weight:600;}
+.sex-notes .foot{padding-top:8px;border-top:1px solid rgba(148,163,184,.14);color:#7c8aa0;}
+.wire-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 0 -8px;}
+.wire-key{display:flex;align-items:center;gap:6px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#64748b;}
+.wire-key .ln{display:inline-block;width:14px;height:2px;border-radius:2px;}
+.wire-key .ln.inter{background:#ff9f40;box-shadow:0 0 4px #ff9f40;}
+.wire-key .ln.intra{background:#5b9aff;box-shadow:0 0 4px #5b9aff;}
 .filter-switch{display:flex;align-items:center;gap:8px;padding:5px 8px;border:0;background:none;cursor:pointer;
   font:inherit;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:#64748b;}
 .filter-switch:hover{color:#cbd5e1;}
@@ -170,6 +191,15 @@ footer{text-align:center;padding:24px;font-size:9px;letter-spacing:.25em;text-tr
       <div class="picker" id="picker" role="group" aria-label="Activities"></div>
     </div>
     <div class="stage">
+      <div class="stage-head">
+        <p class="label">Brain model</p>
+        <div class="seg" id="sexSeg" role="radiogroup" aria-label="Brain model">
+          <span class="seg-thumb" aria-hidden="true"></span>
+          <button type="button" role="radio" aria-checked="true" data-sex="avg">Average</button>
+          <button type="button" role="radio" aria-checked="false" data-sex="f">Female</button>
+          <button type="button" role="radio" aria-checked="false" data-sex="m">Male</button>
+        </div>
+      </div>
       <div class="canvas-wrap" id="wrap">
         <canvas id="brain" role="img" aria-label="3D brain model"></canvas>
         <svg class="leaders" id="leaders" aria-hidden="true"></svg>
@@ -179,7 +209,7 @@ footer{text-align:center;padding:24px;font-size:9px;letter-spacing:.25em;text-tr
         <div class="focus-cap" id="focusCap" aria-live="polite"></div>
         <button type="button" class="view-reset" id="viewReset">Reset view</button>
         <div class="zoom-hint" id="zoomHint" aria-hidden="true"></div>
-        <div class="hud tl">SUBJ-001<span class="long"> · Stylized whole-brain model</span></div>
+        <div class="hud tl">SUBJ-001<span class="long"> · <span id="hudModel">Stylized whole-brain model</span></span></div>
         <div class="hud tr">● Tracking</div>
         <div class="hud bl" id="hudHint">Drag to rotate · Hover to identify</div>
         <div class="hud br" id="hudLabel">Listening to Music</div>
@@ -190,6 +220,15 @@ footer{text-align:center;padding:24px;font-size:9px;letter-spacing:.25em;text-tr
     </div>
     <div>
       <p class="label">Telemetry</p>
+      <div class="panel sexpanel" id="sexPanel" hidden>
+        <p class="label" style="margin-bottom:4px;">Female vs. male brains</p>
+        <canvas id="sexChart" role="img"></canvas>
+        <div class="wire-row">
+          <button type="button" class="filter-switch" id="wireSwitch" role="switch" aria-checked="true" aria-label="Show average wiring pattern"><span class="track" aria-hidden="true"><span class="knob"></span></span>Wiring</button>
+          <span class="wire-key" aria-hidden="true"><i class="ln inter"></i>across <i class="ln intra"></i>within</span>
+        </div>
+        <div class="sex-notes" id="sexNotes"></div>
+      </div>
       <div class="panel">
         <div class="k"><span id="boldLabel">fMRI BOLD change</span><span id="boldVal"></span></div>
         <div class="bar" id="boldBarWrap"><div id="boldBar"></div></div>
@@ -231,7 +270,8 @@ const REGIONS = {
   occipital: {color:'#00ff87', label:'Occipital Lobe'},
   cerebellum:{color:'#e024c3', label:'Cerebellum'},
   limbic:    {color:'#ff2e63', label:'Limbic & Deep Nuclei'},
-  brainstem: {color:'#94a3b8', label:'Brainstem'}
+  brainstem: {color:'#94a3b8', label:'Brainstem'},
+  insula:    {color:'#b388ff', label:'Insular Lobe'}
 };
 
 // Every particle belongs to one structure; structures roll up into the legend groups above.
@@ -250,7 +290,8 @@ const STRUCTS = [
   {id:'striatum',    group:'limbic', color:'#ff4fa3', name:'Striatum',        info:'Reward, motivation, habits and choosing actions'},
   {id:'cingulate',   group:'limbic', color:'#ff2e63', name:'Cingulate cortex',info:'Attention, error monitoring and emotion'},
   {id:'medulla',     group:'brainstem',  name:'Medulla',        info:'Controls breathing, heart rate and blood pressure; motor fibers cross sides here'},
-  {id:'cord',        group:'brainstem',  name:'Spinal cord',    info:'Carries signals between the brain and body (only its top is shown)'}
+  {id:'cord',        group:'brainstem',  name:'Spinal cord',    info:'Carries signals between the brain and body (only its top is shown)'},
+  {id:'insula',      group:'insula',     name:'insula',         info:'Turns bodily signals like gut feelings, heartbeat and taste into felt emotions'}
 ];
 const SI = Object.fromEntries(STRUCTS.map((s, i) => [s.id, i]));
 
@@ -273,7 +314,7 @@ const MARKS = {
   v1:         {name:'Primary visual cortex',      p:[0.22, 0.08,-1.80], snap:1, side:'B', r:0.24},
   fusiform:   {name:'“What” stream (fusiform)',   p:[0.70,-0.80,-0.62], snap:1, side:'B', r:0.22},
   ppc:        {name:'“Where” stream (parietal)',  p:[0.70, 0.98,-0.75], snap:1, side:'B', r:0.22},
-  insula:     {name:'Posterior insula',           p:[0.80,-0.04,-0.18], side:'B', r:0.18},
+  insula:     {name:'Posterior insula',           p:[0.80,-0.04,-0.18], side:'B', r:0.18, lobe:'insula'},
   hippocampus:{name:'Hippocampus',                p:[0.54,-0.30,-0.18], side:'B', deep:1},
   amygdala:   {name:'Amygdala',                   p:[0.48,-0.40, 0.36], side:'B', deep:1},
   hypothalamus:{name:'Hypothalamus',              p:[0.00,-0.32, 0.12], side:'X', deep:1},
@@ -286,7 +327,18 @@ const MARKS = {
   pituitary:  {name:'Pituitary',                  p:[0.00,-0.56, 0.22], side:'X', deep:1},
   cerebR:     {name:'Cerebellum (right half)',    p:[-0.55,-1.04,-1.25], side:'X', deep:1},
   cerebL:     {name:'Cerebellum (left half)',     p:[0.55,-1.04,-1.25], side:'X', deep:1},
-  vlpfc:      {name:'Ventrolateral prefrontal cortex', p:[1.05,-0.12,0.85], snap:1, side:'B', r:0.2}
+  inah3:      {name:'INAH-3',                     p:[0.0,-0.30,0.21], side:'X', deep:1},
+  wAcross:    {name:'Across hemispheres',         p:[0.0,0.36,0.05], side:'X', deep:1},
+  wWithin:    {name:'Within a hemisphere',        p:[0.80,0.61,0.0], side:'B', deep:1},
+  wCereb:     {name:'Cerebellar connections',     p:[0.0,-0.96,-1.45], side:'X', deep:1},
+  vlpfc:      {name:'Ventrolateral prefrontal cortex', p:[1.05,-0.12,0.85], snap:1, side:'B', r:0.2},
+  f3:         {name:'Frontal cortex (EEG site F3)', p:[0.72,0.88,0.78], snap:1, side:'B', r:0.28},
+  insulaAnt:  {name:'Anterior insula',            p:[0.81,-0.12,0.26], side:'B', r:0.18, lobe:'insula'},
+  ofc:        {name:'Orbitofrontal cortex',       p:[0.55,-0.45,1.00], snap:1, side:'B', r:0.22},
+  sgacc:      {name:'Subgenual cingulate',        p:[0.06,-0.12,0.70], snap:1, side:'B', r:0.16, medial:1, lobe:'cingulate'},
+  putamen:    {name:'Putamen',                    p:[0.46,0.02,0.16], side:'B', deep:1},
+  entorhinal: {name:'Entorhinal cortex',          p:[0.40,-0.52,0.02], side:'B', r:0.16, deep:1, lobe:'temporal'},
+  rsc:        {name:'Retrosplenial cortex',       p:[0.08,0.10,-0.88], snap:1, side:'B', r:0.18, medial:1, lobe:'cingulate'}
 };
 
 // Fiber pathways that carry the animated signal pulses (start → end).
@@ -324,6 +376,20 @@ const PATHS = {
   ifgToCaudateL:  {side:'L', pts:['ifg',[0.62,0.14,0.42],'caudate']},
   artsDorsalR:    {side:'R', pts:['v1',[0.45,0.55,-1.25],'ppc']},
   artsSLFR:       {side:'R', pts:['ppc',[0.80,0.80,0.20],'dlpfc']},
+  ofcToAmyg:      {side:'B', pts:['ofc',[0.45,-0.42,0.70],'amygdala']},
+  thalToInsula:   {side:'B', pts:['thalamus',[0.55,-0.06,0.10],'insulaAnt']},
+  insulaToPutamen:{side:'B', pts:['insulaAnt',[0.64,0.0,0.22],'putamen']},
+  insulaToAmyg:   {side:'B', pts:['insulaAnt',[0.64,-0.28,0.33],'amygdala']},
+  sgaccToHypo:    {side:'B', pts:['sgacc',[0.05,-0.25,0.42],'hypothalamus']},
+  sgaccToAmyg:    {side:'B', pts:['sgacc',[0.25,-0.32,0.55],'amygdala']},
+  sgaccToInsula:  {side:'B', pts:['sgacc',[0.42,-0.14,0.50],'insulaAnt']},
+  ecToHippoR:     {side:'R', pts:['entorhinal',[0.50,-0.44,-0.05],'hippocampus']},
+  hippoToRscR:    {side:'R', pts:['hippocampus',[0.35,0.0,-0.68],'rsc']},
+  rscToPpcR:      {side:'R', pts:['rsc',[0.30,0.62,-0.90],'ppc']},
+  thalToRscR:     {side:'R', pts:['thalamus',[0.15,0.12,-0.55],'rsc']},
+  pcunToCaud:     {side:'B', pts:['precuneus',[0.20,0.42,-0.22],'caudate']},
+  pcunToPfc:      {side:'B', pts:['precuneus',[0.32,0.72,0.08],'dlpfc']},
+  pfcToCaud:      {side:'B', pts:['dlpfc',[0.48,0.42,0.55],'caudate']},
   dmnMedial:      {side:'X', gain:1.9, pts:[[0,0.62,-0.62],[0,0.58,0.0],[0,0.30,0.85],[0,-0.25,1.26]]}   // default network: one midline path between the hemispheres
 };
 
@@ -387,6 +453,29 @@ const ACTIVITIES = [
   also:['cerebellum'],
   why:"In most people, language leans on the left hemisphere. Wernicke’s area in the temporal lobe helps link sounds to meaning, Broca’s area in the frontal lobe helps plan words and sentences, and a fiber tract called the arcuate fasciculus connects them. The motor cortex and cerebellum then coordinate your lips, tongue and larynx."},
 
+ {id:'anger', lateral:true, name:'Feeling Anger', accent:'#ff5722', view:[3.1416,0.9],
+  rhythm:{band:'Alpha', range:'8–12 Hz', kind:'alpha', note:'Anger goes with relatively less alpha, meaning more activity, over the left frontal lobe: the same lean as happiness, because both push you toward something.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{frontal:60, limbic:70, brainstem:55, temporal:25, parietal:15},
+  structures:{amygdala:85, hypothalamus:80, midbrain:80, pons:40, medulla:40, thalamus:35, striatum:35, cingulate:50, hippocampus:15},
+  lat:{cortex:0.3},
+  hot:[{id:'f3', side:'L', v:0.55},{id:'ofc', v:0.45}],
+  labels:[{id:'f3', side:'L', text:'Left frontal cortex (approach)'},'amygdala','pag',{id:'ofc', text:'Orbitofrontal cortex (restraint)'}],
+  paths:['amygToHypo','hypoToBrainstem','ofcToAmyg'],
+  why:"Anger is unusual: it feels unpleasant, yet it pushes you toward a problem rather than away from it. EEG studies find it shares happiness’s left-frontal lean, which suggests that lean tracks the urge to approach rather than whether a feeling is pleasant. Underneath, the amygdala, hypothalamus and periaqueductal gray drive the heated response, while the orbitofrontal cortex helps keep it in check."},
+
+ {id:'navigation', lateral:true, name:'Spatial Orientation', accent:'#2dd4bf', view:[3.1416,0.85],
+  rhythm:{band:'Theta', range:'4–8 Hz', kind:'theta', note:'Theta in the entorhinal cortex rises and falls six times as your heading turns full circle, a signature of grid cells.'},
+  bold:{text:'≈ 0.5–1.5%', pct:1.0},
+  regions:{parietal:60, temporal:50, occipital:35, frontal:25, limbic:50, cerebellum:20},
+  structures:{hippocampus:80, thalamus:50, cingulate:55, striatum:35, amygdala:10, hypothalamus:10},
+  lat:{cortex:-0.25},
+  hot:[{id:'hippocampus', side:'R', v:0.6},{id:'entorhinal', v:0.55},{id:'rsc', v:0.6},{id:'ppc', side:'R', v:0.55}],
+  labels:[{id:'hippocampus', side:'R', text:'Right hippocampus (map)'},{id:'entorhinal', side:'R', text:'Entorhinal cortex (grid cells)'},{id:'rsc', text:'Retrosplenial cortex (heading)'},{id:'ppc', side:'R', text:'Right parietal (body-centered space)'}],
+  paths:['ecToHippoR','hippoToRscR','rscToPpcR','thalToRscR'],
+  why:"Knowing where you are takes a team of specialized cells. In the entorhinal cortex, grid cells fire in a repeating triangular pattern that works like map coordinates, and the hippocampus holds place cells that mark particular spots, together forming a mental map, with the right hippocampus often taking the lead. The retrosplenial cortex tracks which way you’re facing, and the parietal cortex handles space relative to your body: left, right, ahead.",
+  fact:"London taxi drivers, who memorize thousands of streets, have larger rear hippocampi than non-drivers, and on the right side that region grows with years on the job. In everyday people, though, hippocampus size is a weak predictor of how good someone’s sense of direction is."},
+
  {id:'music', name:'Listening to Music', accent:'#00f0ff', view:[-1.35,0.16],
   rhythm:{band:'Beta', range:'13–30 Hz', kind:'beat', note:'Beta power in auditory and motor areas rises and falls in time with the beat.'},
   bold:{text:'≈ 1–2%', pct:1.5},
@@ -409,6 +498,17 @@ const ACTIVITIES = [
   paths:['ipsToDlpfc'],
   why:"The intraparietal sulcus represents quantities and is active whenever you compare or estimate numbers, while the prefrontal cortex holds intermediate results in working memory and sequences the steps. Memorized facts like times tables lean more on the left angular gyrus."},
 
+ {id:'chess', name:'Playing Chess', accent:'#e9d8a6', view:[-1.7,-0.1],
+  rhythm:{band:'Theta', range:'4–8 Hz', kind:'theta', note:'Theta power rises across frontal, central and posterior sites as the opponent gets tougher.'},
+  bold:{text:'≈ 0.5–1.5%', pct:1.0},
+  regions:{parietal:75, frontal:65, temporal:60, limbic:30, cerebellum:20, occipital:15},
+  structures:{striatum:55, thalamus:35, cingulate:35, hippocampus:30, amygdala:10, hypothalamus:10},
+  hot:[{id:'fusiform', v:0.65},{id:'precuneus', v:0.6},{id:'dlpfc', v:0.45}],
+  labels:[{id:'fusiform', text:'Fusiform gyrus (pattern recognition)', seeThrough:1},{id:'precuneus', text:'Precuneus (board patterns)'},{id:'caudate', text:'Caudate nucleus (intuitive moves)'},{id:'dlpfc', text:'Prefrontal cortex (planning ahead)'}],
+  paths:['pcunToCaud','pcunToPfc','pfcToCaud'],
+  why:"Chess leans on visual pattern recognition as much as raw calculation. Compared with novices, experts show more activity in the fusiform gyrus and posterior temporal cortex, which recognize familiar arrangements of pieces much as the fusiform helps us recognize faces; parietal areas work out how the pieces relate in space, and the prefrontal cortex plans moves ahead. In professional players of shogi (Japanese chess), the precuneus responds to board patterns and the caudate nucleus lights up when a strong move must come within about a second: a neural trace of intuition.",
+  fact:"Experts engage matching areas in both hemispheres when they recognize chess positions, while novices rely mostly on the left. Researchers call this the “double take of expertise.”"},
+
  {id:'memory', name:'Recalling a Memory', accent:'#ff2e63', view:[-1.25,0.1],
   rhythm:{band:'Theta', range:'4–8 Hz', kind:'theta', note:'Hippocampal theta helps coordinate recall across the cortex.'},
   bold:{text:'≈ 0.2–1%', pct:0.6},
@@ -428,6 +528,29 @@ const ACTIVITIES = [
   labels:['amygdala','hypothalamus','pag'],
   paths:['thalToAmyg','amygToHypo','hypoToBrainstem','vmpfcToAmyg'],
   why:"The amygdala flags a threat within a fraction of a second, helped by a fast route from the thalamus. It signals the hypothalamus and brainstem, including the periaqueductal gray, to launch the stress response: racing heart, adrenaline, freezing. The prefrontal cortex weighs in a beat later and can dial the alarm back down."},
+
+ {id:'disgust', name:'Feeling Disgust', accent:'#a3e635', view:[-1.35,0.12],
+  rhythm:{band:'No clear signature', range:'', kind:'mixed', note:'Disgust has been studied mostly with fMRI; no single EEG rhythm defines it.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{insula:90, limbic:50, frontal:45, temporal:30, brainstem:25, occipital:25, parietal:15},
+  structures:{striatum:65, amygdala:50, thalamus:40, cingulate:40, hypothalamus:25, hippocampus:20},
+  hot:[{id:'insulaAnt', v:0.95},{id:'ofc', v:0.35}],
+  labels:[{id:'insulaAnt', text:'Anterior insula'},{id:'putamen', text:'Basal ganglia (putamen)'},'amygdala'],
+  paths:['thalToInsula','insulaToPutamen','insulaToAmyg'],
+  why:"Disgust protects you from contamination. The anterior insula, folded deep inside the side of the brain, turns gut feelings like nausea into the sense of “yuck,” working with the basal ganglia and amygdala. The same insula spots light up whether you smell something foul or just watch someone else’s disgusted face. It isn’t a dedicated disgust center, though: the insula tracks bodily feelings of many kinds.",
+  fact:"People whose insula or basal ganglia are damaged, including some with Huntington’s disease, can have trouble recognizing disgust in other people’s faces."},
+
+ {id:'sadness', name:'Feeling Sadness', accent:'#8ea8c3', view:[-1.2,0.1],
+  rhythm:{band:'No clear signature', range:'', kind:'mixed', note:'Induced sadness has no single defining EEG rhythm; most of what we know comes from PET and fMRI.'},
+  bold:{text:'≈ 0.2–1%', pct:0.6},
+  regions:{limbic:55, insula:45, temporal:25, brainstem:25, frontal:18, occipital:15, parietal:12},
+  structures:{cingulate:50, amygdala:45, hypothalamus:45, hippocampus:30, thalamus:30, striatum:20},
+  dim:0.85,
+  hot:[{id:'sgacc', v:1.0},{id:'insulaAnt', v:0.45}],
+  labels:[{id:'sgacc', text:'Subgenual cingulate (area 25)'},{id:'insulaAnt', text:'Anterior insula'},{id:'dlpfc', text:'Prefrontal cortex (quieter)'}],
+  paths:['sgaccToHypo','sgaccToAmyg','sgaccToInsula'],
+  why:"Sadness turns up a small patch of cortex beneath the front of the corpus callosum, the subgenual cingulate (Brodmann area 25), along with the anterior insula, while upper frontal areas involved in planning and attention quiet down. The same patch is overactive in severe depression, and its activity falls when treatment works.",
+  fact:"Area 25 has been a target for deep brain stimulation in severe, treatment-resistant depression: in the first small study, four of six patients improved markedly, though the approach is still experimental. Because sadness is a withdrawal emotion, researchers also expect a slight right-frontal lean, the opposite of anger, but that evidence is weaker."},
 
  {id:'vision', name:'Seeing an Image', accent:'#00ff87', view:[-2.45,0.22],
   rhythm:{band:'Gamma', range:'30–80 Hz', kind:'gamma', note:'Visual cortex oscillates in the gamma range while it processes an image; resting alpha drops.'},
@@ -473,7 +596,7 @@ const ACTIVITIES = [
  {id:'lust', name:'Lust & Attraction', accent:'#ff3b3b', view:[-1.15,0.05],
   rhythm:{band:'No clear signature', range:'', kind:'mixed', note:'No established EEG rhythm marks sexual desire; most evidence comes from fMRI.'},
   bold:{text:'≈ 0.2–1%', pct:0.7},
-  regions:{limbic:90, brainstem:45, parietal:35, frontal:30, occipital:30},
+  regions:{limbic:90, brainstem:45, insula:45, parietal:35, frontal:30, occipital:30},
   structures:{hypothalamus:100, amygdala:80, striatum:85, midbrain:55, thalamus:40, cingulate:45, hippocampus:20},
   hot:['insula'],
   labels:['hypothalamus','amygdala','insula'],
@@ -558,7 +681,12 @@ function cerebFold(x, y, z){ // folia radiate from the peduncles like the pages 
 function callosumTop(z){ const q = (z + 0.10) / 0.70; return Math.abs(q) < 1 ? 0.06 + 0.24 * Math.sqrt(1 - q * q) : null; }
 function classifyCortex(x, y, z){
   const ax = Math.abs(x);
-  if (ax < 0.16){ const yc = callosumTop(z); if (yc !== null && y > yc - 0.02 && y < yc + 0.26) return SI.cingulate; }
+  if (ax < 0.16){
+    const yc = callosumTop(z);
+    if (yc !== null && y > yc - 0.02 && y < yc + 0.26) return SI.cingulate;
+    if (z > 0.5 && z < 0.88 && y > -0.38 && y < 0.18) return SI.cingulate;     // subgenual / pregenual cingulate (area 25)
+    if (z > -1.0 && z < -0.7 && y > -0.22 && y < 0.36) return SI.cingulate;    // retrosplenial cortex, behind the splenium
+  }
   if (z < occZ(y)) return SI.occipital;
   const [m, f, o, t] = hemParts(x, y, z);
   if (t < Math.min(m, f, o) + 0.02 && y < 0.02) return SI.temporal;
@@ -658,6 +786,18 @@ function buildBrain(Q){
        Math.round(280*Q), () => SI.hippocampus, true);
   tube([[0.24,0.06,0.52],[0.30,0.24,0.22],[0.33,0.26,-0.18],[0.40,0.12,-0.50],[0.50,-0.10,-0.52]], u => lerp(0.12, 0.03, Math.sqrt(u)),
        Math.round(250*Q), () => SI.striatum, true);                                     // caudate
+  // --- insula: folded cortex hidden deep inside the lateral (Sylvian) fissure ---
+  for (const sx of [1, -1]){
+    for (let c = 0, guard = 0, N = Math.round(440 * Q); c < N && guard < 2e5; guard++){
+      const u = rand() * 2 - 1, v = rand() * 2 - 1;                 // u: back -> front, v: down -> up
+      if (u * u * 0.9 + v * v > 1) continue;                        // oval patch
+      const z = 0.02 + u * 0.42, y = sylvianY(z) + 0.10 + v * 0.17;  // follows the fissure's slope
+      const x = 0.80 - 0.06 * u * u - 0.04 * v * v;                 // gently domed outward
+      const fold = smooth(0.08, 0.5, Math.abs(Math.sin(z * 15 + y * 5)));   // short + long insular gyri
+      if (rand() > 0.35 + 0.65 * fold) continue;
+      add(x * sx, y, z, sx, 0, 0, SI.insula, fold, 0, 0.046 + rand() * 0.02); c++;
+    }
+  }
   // --- brainstem (midbrain → pons → medulla → spinal cord) ---
   const stemR = u => u < 0.2 ? 0.20 : (u < 0.55 ? lerp(0.20, 0.15, (u - 0.2) / 0.35) : lerp(0.15, 0.09, clamp((u - 0.55) / 0.3, 0, 1)));
   tube([[0,-0.26,-0.18],[0,-0.55,-0.24],[0,-0.88,-0.26],[0,-1.15,-0.36],[0,-1.55,-0.46],[0,-2.15,-0.55]], stemR,
@@ -670,6 +810,8 @@ function buildBrain(Q){
     if (sdCerebrum(x, y, z) > -0.10) continue;
     add(x, y, z, 0, 1, 0, classifyCortex(x, y, z), 0.5, 4, 0.04); c++;
   }
+  // INAH-3: a tiny cell group in the front of the hypothalamus (drawn far larger than life so it can be seen)
+  blob([0.03,-0.30,0.21], [0.03,0.026,0.036], Math.round(46*Q), SI.hypothalamus, true, 0.3, 0.042);
   return { A, n };
 }
 
@@ -679,7 +821,7 @@ function buildBrain(Q){
 const BRAIN_VERT = `
 attribute vec3 aStart; attribute vec3 aNormal; attribute vec3 aColor;
 attribute float aStruct; attribute float aSeed; attribute float aSize; attribute float aFold; attribute float aHemi; attribute float aKind;
-uniform float uRegA[15]; uniform float uRegB[15];
+uniform float uRegA[16]; uniform float uRegB[16];
 uniform vec4 uHotA[6]; uniform vec4 uHotB[6]; uniform float uHotAv[6]; uniform float uHotBv[6];
 uniform vec4 uStA; uniform vec4 uStB;   // dim, wave, spark
 uniform vec4 uLat;                      // A.cortex, A.cerebellum, B.cortex, B.cerebellum
@@ -687,7 +829,8 @@ uniform vec3 uAccA; uniform vec3 uAccB;
 uniform vec4 uT;                        // time, intro, scanY, scanOn
 uniform vec4 uV;                        // hoverStruct, motion, pixelRatio, scale
 uniform float uCenterZ;
-uniform vec4 uFocus[4]; uniform float uFocusOn;
+uniform vec4 uSexHot; uniform float uSexV;
+uniform vec4 uFocus[4]; uniform float uFocusOn; uniform float uDimAll;
 varying vec3 vCol; varying float vHot;
 float hash(float n){ return fract(sin(n) * 43758.5453123); }
 void main(){
@@ -715,6 +858,7 @@ void main(){
     vec3 db = position - uHotB[i].xyz; rB += uHotBv[i] * exp(-dot(db, db) / (uHotB[i].w * uHotB[i].w));
   }
   float I = clamp(mix(rA, rB, w), 0.0, 1.25);
+  vec3 dsx = position - uSexHot.xyz; I += uSexV * exp(-dot(dsx, dsx) / (uSexHot.w * uSexHot.w));   // INAH-3 marker
   vec4 st = mix(uStA, uStB, w);
   vec3 acc = mix(uAccA, uAccB, w);
 
@@ -751,6 +895,7 @@ void main(){
   float fsel = dot(uFocus[fi], vec4(equal(vec4(float(si - fi * 4)), vec4(0.0, 1.0, 2.0, 3.0))));
   b *= mix(1.0, mix(0.12, 1.3, fsel), uFocusOn);
   b *= smoothstep(0.22, 0.85, -mv.z);                           // fade particles right in front of the lens
+  b *= uDimAll;                                                 // dimmed while the wiring overlay is shown
 
   float q = (wp.y - uT.z) / 0.035;
   float band = exp(-q * q) * uT.w;                             // bright scan line
@@ -780,7 +925,7 @@ void main(){
 const PATH_VERT = `
 attribute float aU; attribute float aLen; attribute float aMask; attribute float aSeed; attribute float aGain;
 uniform vec4 uT; uniform vec4 uV; uniform vec2 uIdx; uniform vec3 uAccA; uniform vec3 uAccB; uniform vec4 uStA; uniform vec4 uStB;
-uniform float uFocusOn;
+uniform float uFocusOn; uniform float uDimAll;
 varying vec3 vCol; varying float vHot;
 float bit(float m, float i){ return mod(floor(m / exp2(i) + 0.001), 2.0); }
 void main(){
@@ -794,11 +939,35 @@ void main(){
   float comet = exp(-d * 6.0) * motion;
   float ends = smoothstep(0.0, 0.07, aU) * smoothstep(1.0, 0.93, aU);
   float dim = mix(uStA.x, uStB.x, w);
-  float fk = aGain * mix(1.0, 0.3, uFocusOn) * smoothstep(0.22, 0.85, -mv.z);
+  float fk = aGain * mix(1.0, 0.3, uFocusOn) * smoothstep(0.22, 0.85, -mv.z) * uDimAll;
   float b = on * ends * (mix(0.5, 0.2, motion) + comet * 1.5) * dim * dim * fk;
   vCol = mix(uAccA, uAccB, w) * b + vec3(0.5) * comet * on * ends * fk;
   vHot = comet;
   gl_PointSize = min((0.05 + comet * 0.08 * aGain) * uV.z * uV.w / -mv.z, 48.0 * uV.z);
+  gl_Position = projectionMatrix * mv;
+}`;
+const WIRE_VERT = `
+attribute float aU; attribute float aW; attribute float aCb; attribute float aSeed; attribute vec3 aColor;
+uniform vec4 uT; uniform vec4 uV; uniform vec4 uWire; uniform float uFocusOn;
+varying vec3 vCol; varying float vHot;
+void main(){
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  float isNode = step(1.5, aW);
+  float acr = mix(uWire.x, uWire.y, aCb), wit = mix(uWire.y, uWire.x, aCb);   // cerebellum: reversed
+  float lvl = mix(acr, wit, step(0.5, aW));
+  float hi = smoothstep(0.35, 0.9, lvl);                                     // the emphasised connection type
+  float h = fract(uT.x * 0.32 * uV.y + aSeed);
+  float d = fract((h - aU) * 2.0);
+  float comet = exp(-d * 7.0) * hi * uV.y * (1.0 - isNode);
+  float b = lvl * (0.3 + 0.3 * hi) + comet * 1.5;
+  vec3 col = mix(vec3(1.0, 0.62, 0.25), vec3(0.36, 0.6, 1.0), step(0.5, aW));   // across = orange, within = blue
+  col = mix(col, aColor, isNode);
+  b = mix(b, 0.6, isNode);
+  float on = uWire.z * mix(1.0, 0.3, uFocusOn) * smoothstep(0.22, 0.85, -mv.z);
+  vCol = (col * b + vec3(0.6) * comet) * on;
+  vHot = comet;
+  float size = mix(0.034 + 0.022 * hi + comet * 0.06, 0.075, isNode);
+  gl_PointSize = min(size * uV.z * uV.w / -mv.z, 40.0 * uV.z);
   gl_Position = projectionMatrix * mv;
 }`;
 const DUST_VERT = `
@@ -862,8 +1031,8 @@ function createBrain(canvas){
     }
     m.pos = [x, y, z]; m.nor = nor;
   }
-  const DEEP_OF = { hippocampus:'hippocampus', amygdala:'amygdala', hypothalamus:'hypothalamus', pituitary:'hypothalamus', thalamus:'thalamus', lgn:'thalamus',
-                    nacc:'striatum', caudate:'striatum', vta:'midbrain', pag:'midbrain', cerebR:'cerebellum', cerebL:'cerebellum' };
+  const DEEP_OF = { hippocampus:'hippocampus', amygdala:'amygdala', hypothalamus:'hypothalamus', pituitary:'hypothalamus', thalamus:'thalamus', lgn:'thalamus', putamen:'striatum',
+                    nacc:'striatum', caudate:'striatum', inah3:'hypothalamus', vta:'midbrain', pag:'midbrain', cerebR:'cerebellum', cerebL:'cerebellum' };
   for (const [id, m] of Object.entries(MARKS)) m.struct = m.lobe ? SI[m.lobe] : DEEP_OF[id] ? SI[DEEP_OF[id]] : classifyCortex(m.pos[0], m.pos[1], m.pos[2]);
   const markAt = (id, side, inner) => {
     const m = MARKS[id], s = (side === 'R' && m.side !== 'X') ? -1 : 1, k = (inner && m.snap) ? 0.05 : 0;
@@ -872,14 +1041,16 @@ function createBrain(canvas){
 
   // shared uniforms
   const U = {
-    uRegA:{value:new Float32Array(15)}, uRegB:{value:new Float32Array(15)},
+    uRegA:{value:new Float32Array(16)}, uRegB:{value:new Float32Array(16)},
     uHotA:{value:Array.from({length:6}, () => new THREE.Vector4(0,-50,0,0.1))}, uHotB:{value:Array.from({length:6}, () => new THREE.Vector4(0,-50,0,0.1))},
     uHotAv:{value:new Float32Array(6)}, uHotBv:{value:new Float32Array(6)},
     uStA:{value:new THREE.Vector4(1,0,0.4,0)}, uStB:{value:new THREE.Vector4(1,0,0.4,0)}, uLat:{value:new THREE.Vector4()},
     uAccA:{value:new THREE.Color('#00f0ff')}, uAccB:{value:new THREE.Color('#00f0ff')},
     uT:{value:new THREE.Vector4(0, MOTION ? 0 : 1, -99, 0)}, uV:{value:new THREE.Vector4(-1, MOTION, PR, 500)},
     uIdx:{value:new THREE.Vector2(-1, -1)}, uCenterZ:{value:-6},
-    uFocus:{value:[0, 1, 2, 3].map(() => new THREE.Vector4())}, uFocusOn:{value:0}
+    uFocus:{value:[0, 1, 2, 3].map(() => new THREE.Vector4())}, uFocusOn:{value:0},
+    uSexHot:{value:new THREE.Vector4(0, -50, 0, 0.05)}, uSexV:{value:0},
+    uWire:{value:new THREE.Vector4(0.5, 0.5, 0, 0)}, uDimAll:{value:1}
   };
 
   // brain particles
@@ -918,6 +1089,76 @@ function createBrain(canvas){
     const paths = new THREE.Points(pg, new THREE.ShaderMaterial({ uniforms:U, vertexShader:PATH_VERT, fragmentShader:SPRITE_FRAG, ...additive }));
     paths.frustumCulled = false; group.add(paths);
   }
+  // wiring overlay (brain-model modes), drawn connectome-style like the 2014 study's figure:
+  // region nodes joined by connections across the hemispheres (corpus callosum / anterior commissure)
+  // or within one hemisphere (long front-to-back tracts); cerebellar connections listed separately (pattern reverses there)
+  {
+    const snapIn = (p, inset) => { let [x, y, z] = p;
+      for (let k = 0; k < 12; k++){ const d = sdCerebrum(x, y, z), g = gradOf(sdCerebrum, x, y, z); x -= d*g[0]; y -= d*g[1]; z -= d*g[2]; }
+      const g = gradOf(sdCerebrum, x, y, z); return [x - g[0]*inset, y - g[1]*inset, z - g[2]*inset]; };
+    const NODES = {   // left hemisphere (x > 0); right side is the mirror image
+      sfg:[[0.42,0.98,0.70],'frontal',1], mfg:[[0.85,0.58,0.85],'frontal',1], ifg:[[1.05,0.05,0.62],'frontal',1], ofc:[[0.55,-0.42,1.0],'frontal',1],
+      pre:[[0.95,0.72,0.12],'frontal',1], post:[[0.95,0.70,-0.15],'parietal',1], spl:[[0.58,0.95,-0.62],'parietal',1], ipl:[[1.05,0.42,-0.68],'parietal',1],
+      pcun:[[0.12,0.62,-0.62],'parietal',1], stg:[[1.18,-0.15,-0.22],'temporal',1], tpole:[[0.85,-0.52,0.62],'temporal',1], loc:[[0.72,0.05,-1.45],'occipital',1],
+      thal:[[0.19,-0.02,-0.12],'limbic',0], cbA:[[0.42,-0.80,-0.78],'cerebellum',0], cbP:[[0.45,-1.06,-1.52],'cerebellum',0], cbL:[[0.80,-1.05,-1.12],'cerebellum',0]
+    };
+    const NP = {}; for (const [k, [p, , snap]] of Object.entries(NODES)) NP[k] = snap ? snapIn(p, 0.06) : p;
+    const mir = p => [-p[0], p[1], p[2]];
+    const P = [], Uu = [], Wk = [], Cb = [], Sd = [], Cl = [], v = new THREE.Vector3(), tmpC = new THREE.Color();
+    const addCurve = (pts, kind, cb, strands, spread) => {
+      for (let k = 0; k < strands; k++){
+        const curve = new THREE.CatmullRomCurve3(pts.map((p, i) => { const j = (i && i < pts.length - 1) ? spread : spread * 0.3;
+          return new THREE.Vector3(p[0] + (rand() - 0.5) * j, p[1] + (rand() - 0.5) * j, p[2] + (rand() - 0.5) * j); }), false, 'centripetal');
+        const len = curve.getLength(), cnt = Math.max(18, Math.round(len / 0.018)), seed = rand();
+        for (let i = 0; i < cnt; i++){ const u = i / (cnt - 1); curve.getPointAt(u, v);
+          P.push(v.x, v.y, v.z); Uu.push(u); Wk.push(kind); Cb.push(cb); Sd.push(seed); Cl.push(1, 1, 1); }
+      }
+    };
+    // across: homologous regions through the corpus callosum (temporal lobes cross lower, via the anterior commissure)
+    const callosal = a => { const L = NP[a], zc = clamp(L[2] * 0.75, -0.7, 0.52), yc = callosumTop(zc) - 0.04;
+      return [L, [L[0] * 0.45, yc + 0.14, (L[2] + zc) / 2], [0, yc, zc], [-L[0] * 0.45, yc + 0.14, (L[2] + zc) / 2], mir(L)]; };
+    for (const a of ['sfg','mfg','pre','post','spl','pcun','loc']) addCurve(callosal(a), 0, 0, 3, 0.035);
+    addCurve([NP.mfg, [0.4, callosumTop(0.4) + 0.12, 0.55], [0, callosumTop(0.4) - 0.04, 0.4], [-0.25, callosumTop(0.5) + 0.2, 0.62], mir(NP.sfg)], 0, 0, 2, 0.035);
+    addCurve([NP.stg, [0.55,-0.24,0.12], [0,-0.18,0.24], [-0.55,-0.24,0.12], mir(NP.stg)], 0, 0, 2, 0.03);
+    // within: long association tracts, front to back, in each hemisphere
+    const WITHIN = [
+      ['mfg', [0.80,0.62,0.30], [0.80,0.60,-0.30], 'ipl'],      // superior longitudinal fasciculus
+      ['sfg', [0.45,0.80,0.10], 'spl'],                         // dorsal fronto-parietal
+      ['ifg', [0.95,0.30,0.05], [0.98,0.20,-0.40], 'stg'],      // arcuate fasciculus
+      ['ofc', [0.58,-0.12,0.35], [0.58,-0.08,-0.55], 'loc'],    // inferior fronto-occipital fasciculus
+      ['tpole', [0.80,-0.40,-0.10], [0.72,-0.25,-0.85], 'loc'], // inferior longitudinal fasciculus
+      ['sfg', [0.14,0.50,0.40], [0.14,0.50,-0.25], 'pcun'],     // cingulum
+      ['thal', [0.45,0.42,0.05], 'pre']                         // thalamic radiation
+    ];
+    for (const sx of [1, -1]) for (const t of WITHIN){
+      const pts = t.map(q => typeof q === 'string' ? NP[q] : q).map(p => sx < 0 ? mir(p) : p);
+      addCurve(pts, 1, 0, 3, 0.04);
+    }
+    // cerebellum: across (through the vermis) and within each cerebellar hemisphere
+    for (const [a, mid] of [['cbP', [0,-0.98,-1.6]], ['cbL', [0,-1.1,-1.25]], ['cbA', [0,-0.84,-0.9]]])
+      addCurve([NP[a], [NP[a][0] * 0.4, mid[1] + 0.02, (NP[a][2] + mid[2]) / 2], mid, [-NP[a][0] * 0.4, mid[1] + 0.02, (NP[a][2] + mid[2]) / 2], mir(NP[a])], 0, 1, 2, 0.03);
+    for (const sx of [1, -1]){
+      const m = p => sx < 0 ? mir(p) : p;
+      addCurve([m(NP.cbA), m([0.55,-0.95,-1.05]), m(NP.cbP)], 1, 1, 2, 0.03);
+      addCurve([m(NP.cbA), m([0.68,-0.95,-0.95]), m(NP.cbL)], 1, 1, 2, 0.03);
+    }
+    // region nodes, coloured by lobe
+    for (const [k, [, grp]] of Object.entries(NODES)){
+      tmpC.set(REGIONS[grp].color);
+      for (const p of [NP[k], mir(NP[k])]) for (let i = 0; i < 10; i++){
+        P.push(p[0] + (rand() - 0.5) * 0.05, p[1] + (rand() - 0.5) * 0.05, p[2] + (rand() - 0.5) * 0.05);
+        Uu.push(0); Wk.push(2); Cb.push(grp === 'cerebellum' ? 1 : 0); Sd.push(rand()); Cl.push(tmpC.r, tmpC.g, tmpC.b);
+      }
+    }
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    wg.setAttribute('aU', new THREE.Float32BufferAttribute(Uu, 1)); wg.setAttribute('aW', new THREE.Float32BufferAttribute(Wk, 1));
+    wg.setAttribute('aCb', new THREE.Float32BufferAttribute(Cb, 1)); wg.setAttribute('aSeed', new THREE.Float32BufferAttribute(Sd, 1));
+    wg.setAttribute('aColor', new THREE.Float32BufferAttribute(Cl, 3));
+    const wire = new THREE.Points(wg, new THREE.ShaderMaterial({ uniforms:U, vertexShader:WIRE_VERT, fragmentShader:SPRITE_FRAG, ...additive }));
+    wire.frustumCulled = false; group.add(wire);
+  }
+
   // background dust for depth
   {
     const DN = 420, P = new Float32Array(DN * 3), S = new Float32Array(DN);
@@ -937,7 +1178,7 @@ function createBrain(canvas){
     STRUCTS.forEach((s, i) => {
       let v;
       if (i <= 4) v = a.regions[s.group] || 0;   // lobes + cerebellum
-      else { const fb = s.group === 'brainstem' ? a.regions.brainstem : a.regions.limbic;
+      else { const fb = s.group === 'brainstem' ? a.regions.brainstem : s.group === 'limbic' ? a.regions.limbic : a.regions[s.group];
              v = (a.structures && a.structures[s.id] != null) ? a.structures[s.id] : (fb || 0);
              if (s.id === 'cord' && !(a.structures && a.structures.cord != null)) v = reg[SI.medulla] * 100 * 0.7; }
       reg[i] = v / 100;
@@ -988,7 +1229,29 @@ function createBrain(canvas){
 
   /* ---------- scan sweep ---------- */
   const SCAN_TOP = 1.95, SCAN_BOT = -2.35;
-  let scan = null, intro = MOTION ? 0 : 1, pendingScan = false, actIdx = -1;
+  let scan = null, intro = MOTION ? 0 : 1, pendingScan = false, actIdx = -1, curAct = null;
+
+  /* ---------- brain model: average / female / male ----------
+     Male brains average ~11% larger in volume (≈3.5% in each dimension); INAH-3 in the hypothalamus
+     is the one regional difference that replicates. Activity patterns are deliberately left unchanged. */
+  const SEX_SCALE = { avg:1, f:0.983, m:1.017 };
+  let sexMode = 'avg', sexScale = 1, sexV = 0, sexR = 0.05;
+  const sexLabels = () => {
+    if (sexMode === 'avg') return [];
+    const L = [{ id:'inah3', text: sexMode === 'm' ? 'INAH-3 (larger in males)' : 'INAH-3 (smaller in females)' }];
+    if (wireOn) L.push({ id:'wAcross', text:(sexMode === 'f' ? '▲' : '▼') + ' Across hemispheres' },
+                       { id:'wWithin', text:(sexMode === 'm' ? '▲' : '▼') + ' Within, front to back' },
+                       { id:'wCereb', text:'Cerebellum: pattern reverses' });
+    return L;
+  };
+  let wireOn = true;
+  function setWire(on){ wireOn = on; if (curAct) Labels.set(curAct, sexLabels()); }
+  function topView(){ setView(Math.PI, 1.15); }
+  function setSex(mode){
+    sexMode = mode;
+    if (curAct) Labels.set(curAct, sexLabels());
+    const m = MARKS.inah3; U.uSexHot.value.x = 0; U.uSexHot.value.y = m.pos[1]; U.uSexHot.value.z = m.pos[2];
+  }
   function startScan(){ scan = { t:0 }; U.uT.value.z = SCAN_TOP; }
   function setActivity(idx){
     const a = ACTIVITIES[idx];
@@ -996,7 +1259,7 @@ function createBrain(canvas){
     U.uIdx.value.x = actIdx; actIdx = idx; U.uIdx.value.y = idx;
     curState = stateOf(a); applyState('B', curState);
     setView(a.view[0], a.view[1]);
-    Labels.set(a);
+    curAct = a; Labels.set(a, sexLabels());
     $('scanline').style.setProperty('--c', a.accent);
     if (!MOTION){ U.uT.value.z = -99; U.uT.value.w = 0; scan = null; return; }
     if (intro < 1) { pendingScan = true; U.uT.value.z = SCAN_TOP; return; }
@@ -1037,17 +1300,17 @@ function createBrain(canvas){
     const EXT = [[1.35,0.2,-0.1],[-1.35,0.2,-0.1],[0.6,1.22,-0.1],[-0.6,1.22,-0.1],[0.55,0.1,1.68],[-0.55,0.1,1.68],
                  [0.45,0.1,-1.82],[-0.45,0.1,-1.82],[0.9,-0.9,-0.1],[-0.9,-0.9,-0.1],[0.9,-1.06,-1.12],[-0.9,-1.06,-1.12],[0,-1.5,-1.1]]
                 .map(p => new THREE.Vector3(p[0], p[1], p[2]));
-    function set(a){
+    function set(a, extra = []){
       items.forEach(it => { it.el.style.opacity = 0; it.line.style.opacity = 0; it.dot.style.opacity = 0;
         setTimeout(() => { it.el.remove(); it.line.remove(); it.dot.remove(); }, 500); });
-      items = (a.labels || []).map(l => {
+      items = [...(a.labels || []), ...extra].map(l => {
         const id = typeof l === 'string' ? l : l.id, m = MARKS[id];
         const el = document.createElement('div'); el.className = 'tag'; el.style.setProperty('--c', a.accent);
         el.textContent = (typeof l === 'object' && l.text) || m.name; layer.appendChild(el);
         const line = document.createElementNS(NS, 'polyline'); line.setAttribute('stroke', a.accent); line.setAttribute('fill', 'none'); line.style.opacity = 0; svg.appendChild(line);
         const dot = document.createElementNS(NS, 'circle'); dot.setAttribute('r', 2.6); dot.setAttribute('fill', a.accent); dot.style.opacity = 0; svg.appendChild(dot);
         const force = (typeof l === 'object' && l.side) || null;
-        return { id, m, el, line, dot, w:0, h:0, pick:force || 'L', force };
+        return { id, m, el, line, dot, w:0, h:0, pick:force || 'L', force, seeThrough: !!(typeof l === 'object' && l.seeThrough) };
       });
     }
     const v = new THREE.Vector3(), nv = new THREE.Vector3();
@@ -1070,7 +1333,7 @@ function createBrain(canvas){
         if (best !== cur && best.s.vz > cur.s.vz + 0.15){ cur = best; it.pick = best.sd; }
         const wy = v.set(cur.mk.p[0], cur.mk.p[1], cur.mk.p[2]).applyMatrix4(group.matrixWorld).y;
         let alpha = 1;
-        if (!cur.mk.deep && !it.m.medial){   // fade labels for spots on the far side of the brain
+        if (!cur.mk.deep && !it.m.medial && !it.seeThrough){   // fade labels for spots on the far side of the brain
           nv.set(cur.mk.n[0], cur.mk.n[1], cur.mk.n[2]).transformDirection(group.matrixWorld).transformDirection(camera.matrixWorldInverse);
           v.set(cur.mk.p[0], cur.mk.p[1], cur.mk.p[2]).applyMatrix4(group.matrixWorld).applyMatrix4(camera.matrixWorldInverse).normalize();
           alpha = -nv.dot(v) > 0.05 ? 1 : 0.45;
@@ -1262,6 +1525,15 @@ function createBrain(canvas){
     swayPh += dt * 0.21 * MOTION;
     pitch += (pitchT - pitch) * (1 - Math.exp(-dt * 3));
     orbit.rotation.set(pitch, base + swayAmp * Math.sin(swayPh), 0);
+    { const k = MOTION ? 1 - Math.exp(-dt * 3) : 1;      // brain model glide
+      sexScale += (SEX_SCALE[sexMode] - sexScale) * k; orbit.scale.setScalar(sexScale);
+      sexV += ((sexMode === 'avg' ? 0 : sexMode === 'm' ? 1.0 : 0.7) - sexV) * k;
+      sexR += ((sexMode === 'm' ? 0.062 : 0.04) - sexR) * k;
+      U.uSexV.value = sexV; U.uSexHot.value.w = sexR;
+      // average emphasis only: across-hemisphere fibers a little stronger for female, within-hemisphere for male
+      const W = U.uWire.value, tx = sexMode === 'm' ? 0.08 : 1.0, ty = sexMode === 'f' ? 0.08 : 1.0;   // emphasised type lit, the other dimmed
+      U.uDimAll.value += ((sexMode !== 'avg' && wireOn ? 0.42 : 1) - U.uDimAll.value) * k;
+      W.x += (tx - W.x) * k; W.y += (ty - W.y) * k; W.z += ((sexMode !== 'avg' && wireOn ? 1 : 0) - W.z) * k; }
     orbit.position.set(C0.x, C0.y + 0.035 * Math.sin(time * 0.6) * MOTION, C0.z);
     // zoom + pivot glide (instant with reduced motion)
     const kz = MOTION ? 1 - Math.exp(-dt * 3.2) : 1;
@@ -1305,7 +1577,7 @@ function createBrain(canvas){
   requestAnimationFrame(frame);
 
   motionQuery.addEventListener && motionQuery.addEventListener('change', e => { MOTION = e.matches ? 0 : 1; U.uV.value.y = MOTION; if (!MOTION) intro = 1; });
-  return { setActivity, labelNames:() => Labels.names(), setFocus, preview, resetView };
+  return { setActivity, labelNames:() => Labels.names(), setFocus, preview, resetView, setSex, setWire, topView };
 }
 
 /* =====================================================================
@@ -1401,7 +1673,7 @@ if (!brain){
   $('wrap').appendChild(msg);
 }
 
-let current = null, autoOn = false, autoKeys = null;
+let current = null, autoOn = false, autoKeys = null, legendBuilt = false;
 function select(id, opts = {}){
   const idx = ACTIVITIES.findIndex(a => a.id === id);
   if (idx < 0 || ACTIVITIES[idx] === current) return;
@@ -1434,9 +1706,85 @@ function select(id, opts = {}){
     brain.setActivity(idx);
     canvas.setAttribute('aria-label', `3D brain model showing ${a.name.toLowerCase()}. Highlighted: ${brain.labelNames().join(', ')}.`);
   }
+  if (legendBuilt) markInvolved(a);                         // outline the regions this stimulus involves
   if (autoOn && !opts.fromFilter) applyAutoHighlight(a);   // user picked a stimulus: mark its regions
 }
 select('music');
+
+/* ---------- brain model toggle: what the research does (and doesn't) support ---------- */
+const SEXC = { avg:'#94a3b8', f:'#2dd4bf', m:'#c084fc' };   // avoids the overlay's orange/blue
+const sexSeg = $('sexSeg'), sexThumb = sexSeg.querySelector('.seg-thumb');
+let sexMode = 'avg';
+function placeSexThumb(){
+  const b = sexSeg.querySelector(`button[data-sex="${sexMode}"]`);
+  sexThumb.style.width = b.offsetWidth + 'px'; sexThumb.style.transform = `translateX(${b.offsetLeft}px)`;
+  sexSeg.style.setProperty('--t', SEXC[sexMode]);
+}
+const SEX_NOTES = `
+  <p><b>Size.</b> Male brains average about 11% larger, partly in line with body size. Size accounts for most other reported differences.</p>
+  <p><b>Beyond size.</b> Differences are small: sex explains about 1% of the variation, and the amygdala and hippocampus show no difference once brain size is accounted for.</p>
+  <p><b>Real but tiny.</b> INAH-3, a cluster of neurons in the hypothalamus (shown enlarged here), is larger and holds more neurons in males.</p>
+  <p><b>Texture.</b> Female cortex is slightly thicker on average; male brains vary more from person to person.</p>
+  <p><b>Mosaic.</b> Few brains are consistently “male-typical” or “female-typical,” yet algorithms can often guess sex from a whole scan, largely through size.</p>
+  <p><b>Wiring.</b> In a 2014 scan study of 949 people aged 8–22, female brains averaged relatively more connections between the hemispheres (orange) and male brains more within each hemisphere, front to back (blue); in the cerebellum the pattern reversed. ▲ marks the type that was stronger on average for this sex. The overlay exaggerates the contrast so it can be seen: these are group averages with large overlap, the study reported no effect sizes, and larger brains of either sex show the same shift, so how much is due to sex itself is still debated.</p>
+  <p><b>Myth.</b> Language isn’t more lateralized in men: meta-analyses find no sex difference.</p>`;
+const SEX_LIFE = {
+  f:'<p><b>Life changes.</b> Pregnancy trims gray matter in social-cognition regions for at least two years, which researchers see as specialization for parenting rather than loss.</p>',
+  m:'<p><b>Life changes.</b> In one PET study, male brains looked about 2–4 years older metabolically than female brains of the same age, a gap much smaller than the differences between individuals.</p>'
+};
+const SEX_FOOT = '<p class="foot">The activity patterns don’t change with this toggle: for these activities, studies find far more overlap than difference, and most reported sex differences in brain activity haven’t replicated.</p>';
+const Phi = x => { const t = 1 / (1 + 0.2316419 * Math.abs(x)), d = 0.3989423 * Math.exp(-x * x / 2);   // standard normal CDF
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return x > 0 ? 1 - p : p; };
+const SEX_ROWS = [ { label:'Overall brain size', d:1.4 }, { label:'Amygdala, adjusted for brain size', d:0.05 } ];
+function drawSexChart(){
+  const cv = $('sexChart'), r = cv.getBoundingClientRect(); if (!r.width) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+  cv.width = W; cv.height = H; const ctx = cv.getContext('2d'); ctx.clearRect(0, 0, W, H);
+  const keyH = 14 * dpr, rowH = (H - keyH) / 2, font = n => `${n * dpr}px ui-monospace,Menlo,Consolas,monospace`;
+  SEX_ROWS.forEach((row, ri) => {
+    const top = ri * rowH, base = top + rowH - 6 * dpr, amp = rowH - 26 * dpr;
+    const xOf = z => W * (0.5 + z / 8);
+    const curve = (mu, col, alpha, fill) => {
+      ctx.beginPath();
+      for (let i = 0; i <= 120; i++){ const z = -4 + i / 15, y = base - amp * Math.exp(-((z - mu) ** 2) / 2); i ? ctx.lineTo(xOf(z), y) : ctx.moveTo(xOf(z), y); }
+      ctx.globalAlpha = alpha * 0.18; ctx.fillStyle = col; ctx.lineTo(xOf(4), base); ctx.lineTo(xOf(-4), base); ctx.fill();
+      ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = (fill ? 1.8 : 1.2) * dpr; ctx.beginPath();
+      for (let i = 0; i <= 120; i++){ const z = -4 + i / 15, y = base - amp * Math.exp(-((z - mu) ** 2) / 2); i ? ctx.lineTo(xOf(z), y) : ctx.moveTo(xOf(z), y); }
+      ctx.stroke(); ctx.globalAlpha = 1;
+    };
+    curve(-row.d / 2, SEXC.f, sexMode === 'm' ? 0.45 : 1, sexMode === 'f');
+    curve(+row.d / 2, SEXC.m, sexMode === 'f' ? 0.45 : 1, sexMode === 'm');
+    ctx.strokeStyle = 'rgba(148,163,184,.25)'; ctx.lineWidth = dpr; ctx.beginPath(); ctx.moveTo(0, base); ctx.lineTo(W, base); ctx.stroke();
+    ctx.fillStyle = '#94a3b8'; ctx.font = font(9.5); ctx.textAlign = 'left'; ctx.fillText(row.label.toUpperCase(), 0, top + 11 * dpr);
+    const ovl = Math.round(200 * Phi(-row.d / 2));
+    ctx.textAlign = 'right'; ctx.fillStyle = '#cbd5e1'; ctx.fillText(`≈${ovl}% overlap`, W, top + 11 * dpr);
+  });
+  ctx.textAlign = 'left'; ctx.font = font(9); ctx.fillStyle = SEXC.f; ctx.fillText('● female', 0, H - 1 * dpr);
+  ctx.fillStyle = SEXC.m; ctx.fillText('● male', 70 * dpr, H - 1 * dpr);
+  cv.setAttribute('aria-label', `Distributions overlap: overall brain size about ${Math.round(200 * Phi(-0.7))}%, amygdala adjusted for brain size about ${Math.round(200 * Phi(-0.025))}%.`);
+}
+function setSexMode(mode){
+  const entering = sexMode === 'avg' && mode !== 'avg';
+  sexMode = mode;
+  sexSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', b.dataset.sex === mode));
+  placeSexThumb();
+  $('hudModel').textContent = mode === 'avg' ? 'Stylized whole-brain model' : mode === 'f' ? 'Female average' : 'Male average';
+  $('sexPanel').hidden = mode === 'avg';
+  if (mode !== 'avg'){ $('sexNotes').innerHTML = SEX_NOTES + SEX_LIFE[mode] + SEX_FOOT; drawSexChart(); }
+  if (brain){ brain.setSex(mode); if (entering && $('wireSwitch').getAttribute('aria-checked') === 'true') brain.topView(); }
+}
+$('wireSwitch').addEventListener('click', () => {
+  const on = $('wireSwitch').getAttribute('aria-checked') !== 'true';
+  $('wireSwitch').setAttribute('aria-checked', on); if (brain) brain.setWire(on);
+});
+sexSeg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => setSexMode(b.dataset.sex)));
+sexSeg.addEventListener('keydown', e => {   // radio-group arrow keys
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const order = ['avg', 'f', 'm'], i = order.indexOf(sexMode), next = order[(i + (e.key === 'ArrowRight' ? 1 : 2)) % 3];
+  setSexMode(next); sexSeg.querySelector(`button[data-sex="${next}"]`).focus(); e.preventDefault();
+});
+new ResizeObserver(() => { placeSexThumb(); if (sexMode !== 'avg') drawSexChart(); }).observe(sexSeg.parentElement);
+placeSexThumb();
 
 /* ---------- legend: hover to preview, click to single out and fly in ---------- */
 // Order: alphabetical by the head word (the "Lobe" entries are indexed under L), each group sorted alphabetically inside.
@@ -1446,6 +1794,7 @@ const LEGEND = [
   {key:'g-limbic',    label:'Limbic & deep nuclei', color:'#ff2e63', s:['amygdala','cingulate','hippocampus','hypothalamus','striatum','thalamus'],
    title:'Limbic system & deep nuclei', info:'Memory, emotion, reward and the brain’s relay hubs'},
   {key:'g-frontal',   label:'Frontal Lobe',   color:'#2a64f6', s:['frontal']},
+  {key:'g-insula',    label:'Insular Lobe',   color:'#b388ff', s:['insula']},
   {key:'g-occipital', label:'Occipital Lobe', color:'#00ff87', s:['occipital']},
   {key:'g-parietal',  label:'Parietal Lobe',  color:'#ffb800', s:['parietal']},
   {key:'g-temporal',  label:'Temporal Lobe',  color:'#00f0ff', s:['temporal']}
@@ -1510,6 +1859,7 @@ SUBLEGEND.forEach(e => {
   makeEntry(e, $('legendSub'));
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && lockedKeys.length) clearEntries(); });
+requestAnimationFrame(() => { legendBuilt = true; if (current) markInvolved(current); });
 
 /* ---------- stimulus filter: with the switch on, only stimuli that involve the highlighted regions stay selectable ---------- */
 let filterOn = false;
@@ -1536,6 +1886,14 @@ function keysFor(a){   // most specific entries: a whole group only when all of 
   });
   return keys;
 }
+function markInvolved(a){
+  const keys = new Set(keysFor(a));
+  document.querySelectorAll('.legend .lg[data-key]').forEach(b => {
+    const on = keys.has(b.dataset.key);
+    b.classList.toggle('involved', on);
+    if (on) b.title = `Involved in ${a.name.toLowerCase()}`; else b.removeAttribute('title');
+  });
+}
 function applyAutoHighlight(a){
   lockedKeys = keysFor(a); autoKeys = lockedKeys.slice();
   syncLegend();
@@ -1547,7 +1905,7 @@ function involvedStructs(a){
   if (a._inv) return a._inv;
   const set = new Set(), val = STRUCTS.map((s, i) => {
     if (i <= 4) return (a.regions[s.group] || 0) / 100;
-    const fb = s.group === 'brainstem' ? a.regions.brainstem : a.regions.limbic;
+    const fb = s.group === 'brainstem' ? a.regions.brainstem : s.group === 'limbic' ? a.regions.limbic : a.regions[s.group];
     return ((a.structures && a.structures[s.id] != null) ? a.structures[s.id] : (fb || 0)) / 100;
   });
   val.forEach((v, i) => { if (v >= 0.45) set.add(i); });
