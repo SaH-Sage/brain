@@ -344,6 +344,10 @@ const MARKS = {
   pituitary:  {name:'Pituitary',                  p:[0.00,-0.56, 0.22], side:'X', deep:1},
   cerebR:     {name:'Cerebellum (right half)',    p:[-0.55,-1.04,-1.25], side:'X', deep:1},
   cerebL:     {name:'Cerebellum (left half)',     p:[0.55,-1.04,-1.25], side:'X', deep:1},
+  dacc:       {name:'Anterior cingulate cortex',  p:[0.06,0.40,0.32], snap:1, side:'B', r:0.2, medial:1, lobe:'cingulate'},
+  racc:       {name:'Rostral anterior cingulate', p:[0.06,0.12,0.78], snap:1, side:'B', r:0.16, medial:1, lobe:'cingulate'},
+  s2:         {name:'Secondary somatosensory cortex', p:[1.18,0.10,-0.12], snap:1, side:'B', r:0.18},
+  rvm:        {name:'Rostral ventromedial medulla', p:[0.0,-1.12,-0.24], side:'X', deep:1},
   inah3:      {name:'INAH-3',                     p:[0.0,-0.30,0.21], side:'X', deep:1},
   wAcross:    {name:'Across hemispheres',         p:[0.0,0.36,0.05], side:'X', deep:1},
   wWithin:    {name:'Within a hemisphere',        p:[0.80,0.61,0.0], side:'B', deep:1},
@@ -404,6 +408,12 @@ const PATHS = {
   hippoToRscR:    {side:'R', pts:['hippocampus',[0.35,0.0,-0.68],'rsc']},
   rscToPpcR:      {side:'R', pts:['rsc',[0.30,0.62,-0.90],'ppc']},
   thalToRscR:     {side:'R', pts:['thalamus',[0.15,0.12,-0.55],'rsc']},
+  spinothalamic:  {side:'X', pts:[[-0.07,-2.02,-0.54],[0.0,-1.92,-0.52],[0.07,-1.70,-0.48],[0.09,-1.30,-0.36],[0.12,-0.90,-0.24],[0.14,-0.50,-0.20],'thalamus']},
+  thalToS1L:      {side:'L', pts:['thalamus',[0.55,0.42,-0.06],'s1Hand']},
+  thalToS2L:      {side:'L', pts:['thalamus',[0.70,0.05,-0.10],'s2']},
+  thalToPostIns:  {side:'B', pts:['thalamus',[0.52,-0.04,-0.16],'insula']},
+  thalToAcc:      {side:'B', pts:['thalamus',[0.12,0.22,0.02],'dacc']},
+  descending:     {side:'X', pts:['racc',[0.04,-0.15,0.30],'pag','rvm',[0,-1.55,-0.46],[0.0,-2.0,-0.55]]},
   pcunToCaud:     {side:'B', pts:['precuneus',[0.20,0.42,-0.22],'caudate']},
   pcunToPfc:      {side:'B', pts:['precuneus',[0.32,0.72,0.08],'dlpfc']},
   pfcToCaud:      {side:'B', pts:['dlpfc',[0.48,0.42,0.55],'caudate']},
@@ -568,6 +578,18 @@ const ACTIVITIES = [
   paths:['sgaccToHypo','sgaccToAmyg','sgaccToInsula'],
   why:"Sadness turns up a small patch of cortex beneath the front of the corpus callosum, the subgenual cingulate (Brodmann area 25), along with the anterior insula, while upper frontal areas involved in planning and attention quiet down. The same patch is overactive in severe depression, and its activity falls when treatment works.",
   fact:"Area 25 has been a target for deep brain stimulation in severe, treatment-resistant depression: in the first small study, four of six patients improved markedly, though the approach is still experimental. Because sadness is a withdrawal emotion, researchers also expect a slight right-frontal lean, the opposite of anger, but that evidence is weaker."},
+
+ {id:'pain', name:'Feeling Pain', accent:'#ff7b7b', view:[-1.5,0.15],
+  rhythm:{band:'Gamma', range:'30–100 Hz', kind:'gamma', note:'Gamma bursts over the somatosensory cortex track how intense pain feels, more closely than the physical stimulus does (they may also code touch intensity in general).'},
+  bold:{text:'≈ 0.5–2%', pct:1.2},
+  regions:{insula:80, parietal:65, limbic:60, brainstem:60, frontal:35, cerebellum:20, temporal:15},
+  structures:{thalamus:75, cingulate:70, midbrain:70, medulla:60, pons:45, cord:70, amygdala:40, hypothalamus:35, striatum:25, hippocampus:15},
+  lat:{cortex:0.15},
+  hot:[{id:'s1Hand', v:0.7},{id:'s2', side:'L', v:0.55},{id:'insula', v:0.6},{id:'dacc', v:0.65}],
+  labels:[{id:'s1Hand', text:'Somatosensory cortex (where, how strong)'},{id:'insula', text:'Posterior insula (pain intensity)'},{id:'dacc', text:'Anterior cingulate (how unpleasant)'},{id:'pag', text:'Periaqueductal gray (turns pain down)'}],
+  paths:['spinothalamic','thalToS1L','thalToS2L','thalToPostIns','thalToAcc','descending'],
+  why:"Pain is built from several streams at once. Signals from a burned right hand cross the spinal cord, climb the brainstem to the thalamus and reach the somatosensory cortex and posterior insula on the left, which register where it hurts and how strongly. The anterior cingulate and anterior insula add how unpleasant it feels. The brain can also turn pain down: the periaqueductal gray signals the medulla to damp incoming pain signals in the spinal cord, using the body’s own opioids.",
+  fact:"Placebo pain relief runs through this same descending circuit: in one study, blocking the body’s opioids with naloxone weakened both the relief and the brainstem responses. Yet there is no single “pain center”: a patient with extensive damage to the insula, anterior cingulate and amygdala on both sides still felt pain’s full unpleasantness."},
 
  {id:'vision', name:'Seeing an Image', accent:'#00ff87', view:[-2.45,0.22],
   rhythm:{band:'Gamma', range:'30–80 Hz', kind:'gamma', note:'Visual cortex oscillates in the gamma range while it processes an image; resting alpha drops.'},
@@ -1052,7 +1074,7 @@ function createBrain(canvas){
     m.pos = [x, y, z]; m.nor = nor;
   }
   const DEEP_OF = { hippocampus:'hippocampus', amygdala:'amygdala', hypothalamus:'hypothalamus', pituitary:'hypothalamus', thalamus:'thalamus', lgn:'thalamus', putamen:'striatum',
-                    nacc:'striatum', caudate:'striatum', inah3:'hypothalamus', vta:'midbrain', pag:'midbrain', cerebR:'cerebellum', cerebL:'cerebellum' };
+                    nacc:'striatum', caudate:'striatum', inah3:'hypothalamus', rvm:'medulla', vta:'midbrain', pag:'midbrain', cerebR:'cerebellum', cerebL:'cerebellum' };
   for (const [id, m] of Object.entries(MARKS)) m.struct = m.lobe ? SI[m.lobe] : DEEP_OF[id] ? SI[DEEP_OF[id]] : classifyCortex(m.pos[0], m.pos[1], m.pos[2]);
   const markAt = (id, side, inner) => {
     const m = MARKS[id], s = (side === 'R' && m.side !== 'X') ? -1 : 1, k = (inner && m.snap) ? 0.05 : 0;
